@@ -4,7 +4,7 @@
 package com.ravi.musicspot.lyrics
 
 import com.ravi.musicspot.core.Http
-import kotlin.concurrent.AtomicReference
+import kotlinx.atomicfu.atomic
 import kotlin.math.abs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -38,7 +38,7 @@ object LyricsPlus {
     private const val TOLERANCE_MS = 8_000L
 
     private val json = Json { ignoreUnknownKeys = true }
-    private val lastGood = AtomicReference<String?>(null)
+    private val lastGood = atomic<String?>(null)
 
     suspend fun lookup(title: String, artist: String, durationMs: Long, album: String? = null): Lyrics? {
         val cleaned = TrackNameCleaner.clean(title, artist)

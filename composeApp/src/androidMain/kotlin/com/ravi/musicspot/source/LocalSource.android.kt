@@ -14,7 +14,7 @@ import kotlinx.coroutines.withContext
 
 actual class LocalSource actual constructor(private val enabled: () -> Boolean) : MusicSource {
     @Volatile var context: Context? = null
-    override val kind: SourceKind = SourceKind.LOCAL
+    actual override val kind: SourceKind = SourceKind.LOCAL
     private val _tracks = MutableStateFlow<List<Track>>(emptyList())
     actual val tracks: StateFlow<List<Track>> = _tracks
 

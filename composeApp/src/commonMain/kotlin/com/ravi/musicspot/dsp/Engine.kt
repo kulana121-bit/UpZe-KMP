@@ -2,7 +2,7 @@ package com.ravi.musicspot.dsp
 
 import kotlin.concurrent.Volatile
 
-import kotlin.concurrent.AtomicReference
+import kotlinx.atomicfu.atomic
 import kotlin.math.max
 
 enum class EnhanceLevel { OFF, LIGHT, STRONG }
@@ -63,7 +63,7 @@ class EngineCore(val inRate: Int, val channels: Int, initial: EngineSettings) {
 
     // 1.0.5: AtomicReference.getAndSet(null) instead of read-then-null on a @Volatile (an update() landing between the
     // two was lost). No allocation on the audio thread.
-    private val pending = AtomicReference<Prepared?>(null)
+    private val pending = atomic<Prepared?>(null)
     private val fsIn = inRate.toDouble()
     private var settings = initial
     /** 1.0.5: settings.eq.isNeutral cached per swap; the getter walks Lists (iterator + unboxing) and was hit per frame while fading. */

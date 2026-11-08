@@ -31,11 +31,11 @@ class CrashActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         fromPrevious = intent?.getBooleanExtra(EXTRA_PREVIOUS, false) == true
-        val file = if (fromPrevious) CrashGuard.previousFile(this) else CrashGuard.crashFile(this)
+        val file = if (fromPrevious) CrashGuard.previousFile() else CrashGuard.crashFile()
         report = runCatching { file.readText() }.getOrNull()?.takeIf { it.isNotBlank() }
             ?: if (fromPrevious) "No crash report saved." else "UpZe stopped, but no crash report was saved."
         // The report is now safely shown; keep it as the "previous" report so the next launch starts normally.
-        if (!fromPrevious) CrashGuard.archive(this)
+        if (!fromPrevious) CrashGuard.archive()
 
         val dp = resources.displayMetrics.density
         fun px(v: Int) = (v * dp).toInt()

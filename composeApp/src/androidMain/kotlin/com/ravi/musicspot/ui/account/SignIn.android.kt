@@ -264,7 +264,7 @@ actual fun SpotifyLoginScreen(onDone: (Boolean) -> Unit) {
 /** Pre-v2.0.8 in-app Spotify sign-in (kept for reference; no longer routed). */
 @Suppress("unused")
 @Composable
-private actual fun SpotifyLoginScreenInline(onDone: (Boolean) -> Unit) {
+private fun SpotifyLoginScreenInline(onDone: (Boolean) -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
     var unavailable by remember { mutableStateOf(false) }

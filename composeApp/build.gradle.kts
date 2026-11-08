@@ -34,6 +34,7 @@ kotlin {
             implementation(compose.components.resources)
 
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.atomicfu)
             implementation(libs.kotlinx.serialization.json)
 
             implementation(libs.ktor.client.core)
