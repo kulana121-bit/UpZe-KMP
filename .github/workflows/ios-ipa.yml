@@ -1,0 +1,58 @@
+name: Build iOS IPA (unsigned)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-ipa:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build ComposeApp framework (iOS arm64, release)
+        run: |
+          chmod +x gradlew
+          ./gradlew :composeApp:linkReleaseFrameworkIosArm64 --no-daemon --stacktrace
+          ls -la composeApp/build/bin/iosArm64/releaseFramework/
+
+      - name: Build iOS app (unsigned)
+        run: |
+          xcodebuild \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/UpZe.app"
+          test -d "$APP_PATH"
+          rm -rf Payload UpZe.ipa
+          mkdir Payload
+          cp -R "$APP_PATH" Payload/
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "Payload/UpZe.app/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "Payload/UpZe.app/Info.plist"
+          zip -qry UpZe.ipa Payload
+          ls -la UpZe.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UpZe-iOS-IPA
+          path: UpZe.ipa
+          if-no-files-found: error

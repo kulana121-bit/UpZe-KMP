@@ -1,0 +1,224 @@
+package com.ravi.musicspot.ui.theme
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Typography
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import com.ravi.musicspot.data.ThemeMode
+import com.ravi.musicspot.logic.Contrast
+
+object Ms {
+    val Canvas = Color(0xFF141317)
+    val Surface1 = Color(0xFF1A191E)
+    val Surface2 = Color(0xFF221F26)
+    val Surface3 = Color(0xFF2B282F)
+    val Accent = Color(0xFFE7A9B0)
+    val OnAccent = Color(0xFF2B1314)
+    val Text = Color(0xFFE9E5E7)
+    val TextSecondary = Color(0xFFB7B2B9)
+    val TextTertiary = Color(0xFF9A98A0)
+    val Hairline = Color(0x1AFFFFFF)
+    val Error = Color(0xFFF2B8B5)
+    val Warning = Color(0xFFE8C88A)
+    val Success = Color(0xFF9CD5AE)
+
+    val r8 = RoundedCornerShape(8.dp)
+    val r12 = RoundedCornerShape(12.dp)
+    val r16 = RoundedCornerShape(16.dp)
+    val r20 = RoundedCornerShape(20.dp)
+    val r28 = RoundedCornerShape(28.dp)
+    val pill = RoundedCornerShape(50)
+}
+
+object MsLight {
+    val Canvas = Color(0xFFF7F4F2)
+    val Surface1 = Color(0xFFF1EDEA)
+    val Surface2 = Color(0xFFE9E4E1)
+    val Surface3 = Color(0xFFE0DAD7)
+    val Accent = Color(0xFF9A4F5A)
+    val OnAccent = Color(0xFFFFFFFF)
+    val Text = Color(0xFF1C1B1F)
+    val TextSecondary = Color(0xFF4A4850)
+}
+
+fun readableOn(bg: Color): Color =
+    if (Contrast.ratio(0xFFFFFFFF.toInt(), bg.toArgb()) >= Contrast.ratio(0xFF000000.toInt(), bg.toArgb())) Color.White else Color(0xFF0B0B0D)
+
+fun readable(fg: Color, bg: Color, min: Double = 4.5): Color {
+    val c = Color(Contrast.ensure(fg.copy(alpha = 1f).toArgb(), bg.copy(alpha = 1f).toArgb(), min))
+    return if (Contrast.ratio(c.toArgb(), bg.copy(alpha = 1f).toArgb()) >= min) c else readableOn(bg)
+}
+
+fun softScheme(seed: Color?, dark: Boolean = true, pureBlack: Boolean = false): ColorScheme {
+    if (!dark) return softLightScheme(seed)
+    val accent = seed?.let { Color(Contrast.softAccent(it.toArgb())) } ?: Ms.Accent
+    val bg = if (pureBlack) Color.Black else seed?.let { Color(Contrast.softSurface(it.toArgb(), 0.075f)) } ?: Ms.Canvas
+    val s1 = if (pureBlack) Color(0xFF0B0B0D) else seed?.let { Color(Contrast.softSurface(it.toArgb(), 0.105f)) } ?: Ms.Surface1
+    val s2 = if (pureBlack) Color(0xFF141417) else seed?.let { Color(Contrast.softSurface(it.toArgb(), 0.14f)) } ?: Ms.Surface2
+    val s3 = if (pureBlack) Color(0xFF1C1C20) else seed?.let { Color(Contrast.softSurface(it.toArgb(), 0.18f)) } ?: Ms.Surface3
+    val primary = readable(accent, s3, 4.5)
+    val onPrimary = readable(Ms.OnAccent, primary, 4.5)
+    val text = readable(Ms.Text, s3, 7.0)
+    val text2 = readable(Ms.TextSecondary, s3, 4.5)
+    val pc = Color(Contrast.softSurface(primary.toArgb(), 0.24f))
+    return darkColorScheme(
+        primary = primary, onPrimary = onPrimary,
+        primaryContainer = pc, onPrimaryContainer = readable(primary, pc, 4.5),
+        inversePrimary = Color(Contrast.ensure(primary.toArgb(), text.toArgb(), 3.0)),
+        secondary = text2, onSecondary = readable(bg, text2, 4.5), secondaryContainer = s3, onSecondaryContainer = text,
+        tertiary = readable(Ms.Success, s3, 4.5), onTertiary = Color(0xFF0E2416), tertiaryContainer = Color(0xFF1E3A28), onTertiaryContainer = Color(0xFFCDEFD6),
+        background = bg, onBackground = text, surface = bg, onSurface = text,
+        surfaceVariant = s2, onSurfaceVariant = text2, surfaceTint = primary,
+        surfaceBright = s3, surfaceDim = bg,
+        surfaceContainerLowest = bg, surfaceContainerLow = s1, surfaceContainer = s1, surfaceContainerHigh = s2, surfaceContainerHighest = s3,
+        outline = Color(0xFF7A7680), outlineVariant = Color(0xFF312E36),
+        error = readable(Ms.Error, s3, 4.5), onError = Color(0xFF3B0D0C), errorContainer = Color(0xFF5B1F1D), onErrorContainer = Color(0xFFF9DEDC),
+        inverseSurface = text, inverseOnSurface = bg, scrim = Color.Black,
+    )
+}
+
+fun softLightScheme(seed: Color?): ColorScheme {
+    fun tone(l: Float, base: Color) = seed?.let { Color(Contrast.softSurface(it.toArgb(), l)) }?.let { lerp(base, it, 0.35f) } ?: base
+    val bg = tone(0.965f, MsLight.Canvas); val s1 = tone(0.945f, MsLight.Surface1); val s2 = tone(0.915f, MsLight.Surface2); val s3 = tone(0.88f, MsLight.Surface3)
+    val accent = seed?.let { val h = Contrast.toHsl(it.toArgb()); Color(Contrast.fromHsl(h[0], minOf(h[1], 0.55f), 0.36f)) } ?: MsLight.Accent
+    val primary = readable(accent, s3, 4.5)
+    val onPrimary = readable(MsLight.OnAccent, primary, 4.5)
+    val text = readable(MsLight.Text, s3, 7.0)
+    val text2 = readable(MsLight.TextSecondary, s3, 4.5)
+    val pc = Color(Contrast.fromHsl(Contrast.toHsl(primary.toArgb())[0], 0.35f, 0.88f))
+    return lightColorScheme(
+        primary = primary, onPrimary = onPrimary,
+        primaryContainer = pc, onPrimaryContainer = readable(primary, pc, 4.5),
+        inversePrimary = Color(Contrast.softAccent(primary.toArgb())),
+        secondary = text2, onSecondary = readable(bg, text2, 4.5), secondaryContainer = s3, onSecondaryContainer = text,
+        tertiary = Color(0xFF2E6B45), onTertiary = Color.White, tertiaryContainer = Color(0xFFCDEFD6), onTertiaryContainer = Color(0xFF0E2416),
+        background = bg, onBackground = text, surface = bg, onSurface = text,
+        surfaceVariant = s2, onSurfaceVariant = text2, surfaceTint = primary,
+        surfaceBright = bg, surfaceDim = s3,
+        surfaceContainerLowest = Color.White, surfaceContainerLow = s1, surfaceContainer = s1, surfaceContainerHigh = s2, surfaceContainerHighest = s3,
+        outline = Color(0xFF79767D), outlineVariant = Color(0xFFCAC4C2),
+        error = Color(0xFFB3261E), onError = Color.White, errorContainer = Color(0xFFF9DEDC), onErrorContainer = Color(0xFF410E0B),
+        inverseSurface = Color(0xFF313033), inverseOnSurface = Color(0xFFF4EFF4), scrim = Color.Black,
+    )
+}
+
+private fun s(size: Int, weight: Int, line: Int, track: Double) =
+    TextStyle(fontSize = size.sp, fontWeight = FontWeight(weight), lineHeight = line.sp, letterSpacing = track.em)
+
+val MsTypography = Typography(
+    displayLarge = s(46, 750, 52, -0.025), displayMedium = s(34, 750, 40, -0.02), displaySmall = s(28, 750, 34, -0.018),
+    headlineLarge = s(30, 700, 36, -0.015), headlineMedium = s(23, 700, 29, -0.012), headlineSmall = s(20, 650, 26, -0.008),
+    titleLarge = s(18, 600, 24, -0.004), titleMedium = s(16, 600, 22, 0.0), titleSmall = s(14, 600, 20, 0.0),
+    bodyLarge = s(16, 400, 24, 0.0), bodyMedium = s(14, 400, 20, 0.004), bodySmall = s(12, 400, 16, 0.01),
+    labelLarge = s(14, 600, 18, 0.008), labelMedium = s(12, 600, 16, 0.015), labelSmall = s(11, 650, 14, 0.03),
+)
+
+/**
+ * 1.0.7: the dynamic scheme built from the artwork's scored colours ([com.ravi.musicspot.logic.ArtTheme]). Starts from [softScheme] (so every
+ * role exists and is checked) and replaces the roles that carry the art's colour: primary + container, the four
+ * surfaces, secondary text and outlines, each re-checked for contrast. Null [p] = the default scheme.
+ */
+fun artScheme(p: com.ravi.musicspot.logic.ArtTheme.Picked?, dark: Boolean, pureBlack: Boolean): ColorScheme {
+    if (p == null) return softScheme(null, dark, pureBlack)
+    val base = softScheme(Color(p.accent), dark, pureBlack)
+    val t = com.ravi.musicspot.logic.ArtTheme.tones(p, dark, pureBlack)
+    val bg = Color(t.bg); val s1 = Color(t.s1); val s2 = Color(t.s2); val s3 = Color(t.s3)
+    val primary = readable(Color(t.accent), s3, 4.5)
+    val onPrimary = readable(if (dark) Color(0xFF101014) else Color.White, primary, 4.5)
+    val text = readable(base.onBackground, s3, 7.0)
+    val text2 = readable(Color(t.textVariant), s3, 4.5)
+    val pc = Color(t.container)
+    return base.copy(
+        primary = primary, onPrimary = onPrimary, primaryContainer = pc, onPrimaryContainer = readable(primary, pc, 4.5),
+        surfaceTint = primary, background = bg, surface = bg, onBackground = text, onSurface = text,
+        surfaceVariant = s2, onSurfaceVariant = text2, secondary = text2, secondaryContainer = s3, onSecondaryContainer = text,
+        surfaceBright = if (dark) s3 else bg, surfaceDim = if (dark) bg else s3,
+        surfaceContainerLowest = if (dark) bg else Color.White, surfaceContainerLow = s1, surfaceContainer = s1,
+        surfaceContainerHigh = s2, surfaceContainerHighest = s3,
+        outlineVariant = Color(t.outlineVariant), inverseSurface = text, inverseOnSurface = bg,
+    )
+}
+
+/** 1.0.7: every colour role of [a]→[b] at [f] (the whole scheme glides on a song change, not just five roles). */
+fun lerpScheme(a: ColorScheme, b: ColorScheme, f: Float): ColorScheme {
+    if (f >= 1f) return b
+    if (f <= 0f) return a
+    fun l(x: Color, y: Color) = lerp(x, y, f)
+    return b.copy(
+        primary = l(a.primary, b.primary), onPrimary = l(a.onPrimary, b.onPrimary),
+        primaryContainer = l(a.primaryContainer, b.primaryContainer), onPrimaryContainer = l(a.onPrimaryContainer, b.onPrimaryContainer),
+        inversePrimary = l(a.inversePrimary, b.inversePrimary), surfaceTint = l(a.surfaceTint, b.surfaceTint),
+        secondary = l(a.secondary, b.secondary), secondaryContainer = l(a.secondaryContainer, b.secondaryContainer),
+        onSecondaryContainer = l(a.onSecondaryContainer, b.onSecondaryContainer),
+        background = l(a.background, b.background), onBackground = l(a.onBackground, b.onBackground),
+        surface = l(a.surface, b.surface), onSurface = l(a.onSurface, b.onSurface),
+        surfaceVariant = l(a.surfaceVariant, b.surfaceVariant), onSurfaceVariant = l(a.onSurfaceVariant, b.onSurfaceVariant),
+        surfaceBright = l(a.surfaceBright, b.surfaceBright), surfaceDim = l(a.surfaceDim, b.surfaceDim),
+        surfaceContainerLowest = l(a.surfaceContainerLowest, b.surfaceContainerLowest), surfaceContainerLow = l(a.surfaceContainerLow, b.surfaceContainerLow),
+        surfaceContainer = l(a.surfaceContainer, b.surfaceContainer), surfaceContainerHigh = l(a.surfaceContainerHigh, b.surfaceContainerHigh),
+        surfaceContainerHighest = l(a.surfaceContainerHighest, b.surfaceContainerHighest),
+        outlineVariant = l(a.outlineVariant, b.outlineVariant), inverseSurface = l(a.inverseSurface, b.inverseSurface),
+        inverseOnSurface = l(a.inverseOnSurface, b.inverseOnSurface),
+    )
+}
+
+fun isDarkTheme(mode: ThemeMode): Boolean = when (mode) {
+    ThemeMode.SYSTEM -> true
+    ThemeMode.LIGHT -> false
+    ThemeMode.DARK, ThemeMode.PURE_BLACK -> true
+}
+
+val LocalSongTint = androidx.compose.runtime.compositionLocalOf<Color?> { null }
+
+@Composable
+fun MusicSpotTheme(artUrl: String? = null, dynamic: Boolean = true, mode: ThemeMode = ThemeMode.DARK, content: @Composable () -> Unit) {
+    val dark = isDarkTheme(mode)
+    val pureBlack = mode == ThemeMode.PURE_BLACK
+    var pick by remember { mutableStateOf<com.ravi.musicspot.logic.ArtTheme.Picked?>(null) }
+    LaunchedEffect(artUrl) { pick = runCatching { extractArtTheme(artUrl) }.getOrNull() ?: if (artUrl == null) null else pick }
+    val art = pick?.let { Color(it.accent) }
+    val target = remember(if (dynamic) pick else null, dark, pureBlack) { artScheme(if (dynamic) pick else null, dark, pureBlack) }
+    val songTint by animateColorAsState(art ?: target.primary, tween(980), label = "song")
+    var from by remember { mutableStateOf(target) }
+    var to by remember { mutableStateOf(target) }
+    val glide = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(target) {
+        if (target == to) return@LaunchedEffect
+        from = lerpScheme(from, to, glide.value)
+        to = target
+        glide.snapTo(0f); glide.animateTo(1f, tween(980))
+    }
+    val scheme = lerpScheme(from, to, glide.value)
+
+    MaterialTheme(
+        colorScheme = scheme, typography = MsTypography,
+        shapes = Shapes(extraSmall = Ms.r8, small = Ms.r12, medium = Ms.r16, large = Ms.r20, extraLarge = Ms.r28),
+    ) {
+        CompositionLocalProvider(LocalContentColor provides scheme.onBackground, LocalSongTint provides songTint) {
+            Surface(color = scheme.background, contentColor = scheme.onBackground, content = content)
+        }
+    }
+}

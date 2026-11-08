@@ -1,0 +1,514 @@
+// v2.0.15: first-time design setup – theme, glass, player, dock & nav, home, artists, feel & sound – with a live phone preview.
+package com.ravi.musicspot.ui.setup
+
+import com.ravi.musicspot.ui.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.LibraryMusic
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.ravi.musicspot.Graph
+import com.ravi.musicspot.data.AppSettings
+import com.ravi.musicspot.data.DockStyle
+import com.ravi.musicspot.data.GlassStyle
+import com.ravi.musicspot.data.NavBarMode
+import com.ravi.musicspot.data.ThemeMode
+import com.ravi.musicspot.ui.glass.GlassLayer
+import com.ravi.musicspot.ui.glass.glass
+import com.ravi.musicspot.ui.motion.reducedMotion
+import com.ravi.musicspot.ui.settings.ChoiceRow
+import com.ravi.musicspot.ui.settings.Group
+import com.ravi.musicspot.ui.settings.RowDivider
+import com.ravi.musicspot.ui.settings.SwitchRow
+import com.ravi.musicspot.ui.theme.Ms
+import com.ravi.musicspot.ui.theme.MsLight
+import com.ravi.musicspot.ui.theme.isDarkTheme
+import com.ravi.musicspot.ui.theme.softScheme
+import kotlinx.coroutines.launch
+
+// v2.0.15: step order. The Artists step hides the phone preview; FEEL is the last page ("Start listening").
+// 1.0.6: the Player and Home steps were removed (one design each: Aura player, Spotlight Home).
+private const val S_THEME = 0
+private const val S_GLASS = 1
+private const val S_DOCK = 2
+private const val S_ARTISTS = 3
+private const val S_FEEL = 4
+private const val SETUP_STEPS = 5
+
+// v2.0.15: "album art" colours the preview's glass floats over, and the seed used to simulate dynamic colour.
+private val ArtPink = Color(0xFFFF6B8B)
+private val ArtViolet = Color(0xFF7C5CFF)
+private val ArtTeal = Color(0xFF22C1C3)
+private val ArtAmber = Color(0xFFFFB347)
+private val ArtGradient = Brush.linearGradient(listOf(ArtPink, ArtViolet, ArtTeal))
+
+private fun finishSetup() = Graph.settings.update { it.copy(setupDone = true) } // v2.0.15
+
+// 1.0.1: step names shown under the "Customize" title.
+private val STEP_NAMES = listOf("Look", "Glass", "Dock", "Artists", "Motion & sound")
+
+/**
+ * v2.0.15: full-screen first-time setup. Every choice is applied live through Graph.settings.
+ * 1.0.1: titled "Customize" with a step label; also opened from Settings (Appearance › Customize) with
+ * [fromSettings] = true, where Back on the first step, Close and Done return through [onExit] instead of
+ * leaving the app. Landscape / wide screens put the live preview beside the steps instead of above them.
+ */
+@Composable
+fun SetupFlow(fromSettings: Boolean = false, onExit: () -> Unit = {}) {
+    val s by Graph.settings.state.collectAsState()
+    val still = reducedMotion()
+    val pager = rememberPagerState(pageCount = { SETUP_STEPS })
+    val scope = rememberCoroutineScope()
+    val focus = LocalFocusManager.current
+    val page = pager.currentPage
+    fun go(to: Int) {
+        val t = to.coerceIn(0, SETUP_STEPS - 1)
+        scope.launch { if (still) pager.scrollToPage(t) else pager.animateScrollToPage(t) }
+    }
+    fun done() { finishSetup(); onExit() }
+    // 1.0.1: leaving the Artists step (by button or swipe) hides the keyboard its search field opened.
+    LaunchedEffect(pager.settledPage) { if (pager.settledPage != S_ARTISTS) focus.clearFocus() }
+    // 1.0.1: from Settings, Back on the first step returns to Settings (first run: Back on step 1 leaves the app as before).
+    BackHandler(enabled = page > 0 || fromSettings) { if (page > 0) go(page - 1) else onExit() }
+
+    BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).windowInsetsPadding(WindowInsets.safeDrawing)) {
+        // 1.0.1: side-by-side on landscape tablets/phones, where a preview above the steps left them ~200 dp.
+        val twoPane = maxWidth > maxHeight && maxWidth >= 560.dp
+        val previewH = maxHeight * 0.42f
+        val previewW = (maxHeight * 0.5f).coerceAtMost(maxWidth * 0.4f)
+        val header: @Composable () -> Unit = {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Customize", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        StepDots(page, still)
+                        Spacer(Modifier.width(10.dp))
+                        Text("${page + 1}/$SETUP_STEPS · ${STEP_NAMES[page]}", style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    }
+                }
+                if (fromSettings) TextButton(onClick = onExit) { Text("Close") }
+                else if (page < SETUP_STEPS - 1) TextButton(onClick = { done() }) { Text("Skip setup") }
+            }
+        }
+        val steps: @Composable (Modifier) -> Unit = { m ->
+            HorizontalPager(state = pager, modifier = m) { p ->
+                if (p == S_ARTISTS) {
+                    ArtistPickerStep(Modifier.fillMaxSize())
+                } else {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                        Column(Modifier.widthIn(max = 560.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) {
+                            when (p) {
+                                S_THEME -> ThemeStep(s)
+                                S_GLASS -> GlassStep(s)
+                                S_DOCK -> DockStep(s)
+                                else -> FeelStep(s)
+                            }
+                            Spacer(Modifier.height(12.dp))
+                        }
+                    }
+                }
+            }
+        }
+        val buttons: @Composable () -> Unit = {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (page > 0) OutlinedButton(onClick = { go(page - 1) }) { Text("Back") }
+                Spacer(Modifier.weight(1f))
+                if (page == S_ARTISTS) TextButton(onClick = { go(page + 1) }) { Text("Skip") }
+                if (page == SETUP_STEPS - 1) Button(onClick = { done() }) { Text(if (fromSettings) "Done" else "Start listening") }
+                else Button(onClick = { go(page + 1) }) { Text("Next") }
+            }
+        }
+        val preview: @Composable (Modifier) -> Unit = { m ->
+            Box(m, contentAlignment = Alignment.Center) {
+                PhonePreview(s, still = still, modifier = Modifier.fillMaxHeight().aspectRatio(0.5f))
+            }
+        }
+        if (twoPane) {
+            Column(Modifier.fillMaxSize()) {
+                header()
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    AnimatedVisibility(
+                        visible = page != S_ARTISTS,
+                        enter = if (still) EnterTransition.None else expandHorizontally() + fadeIn(),
+                        exit = if (still) ExitTransition.None else shrinkHorizontally() + fadeOut(),
+                    ) {
+                        preview(Modifier.fillMaxHeight().width(previewW).padding(vertical = 8.dp, horizontal = 12.dp))
+                    }
+                    Column(Modifier.weight(1f).fillMaxHeight()) {
+                        steps(Modifier.weight(1f).fillMaxWidth())
+                        buttons()
+                    }
+                }
+            }
+        } else {
+            Column(Modifier.fillMaxSize()) {
+                header()
+                AnimatedVisibility(
+                    visible = page != S_ARTISTS,
+                    enter = if (still) EnterTransition.None else expandVertically() + fadeIn(),
+                    exit = if (still) ExitTransition.None else shrinkVertically() + fadeOut(),
+                ) {
+                    preview(Modifier.fillMaxWidth().height(previewH).padding(vertical = 4.dp))
+                }
+                steps(Modifier.weight(1f).fillMaxWidth())
+                buttons()
+            }
+        }
+    }
+}
+
+@Composable
+private fun StepDots(page: Int, still: Boolean) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        repeat(SETUP_STEPS) { i ->
+            val w by animateDpAsState(if (i == page) 22.dp else 8.dp, if (still) tween<Dp>(0) else tween<Dp>(250), label = "dot")
+            Box(Modifier.height(8.dp).width(w).clip(CircleShape).background(
+                if (i == page) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)))
+        }
+    }
+}
+
+// ---- steps ------------------------------------------------------------------------------------------------------
+
+@Composable
+private fun StepHeader(title: String, subtitle: String) {
+    Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+    Spacer(Modifier.height(4.dp))
+    Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Spacer(Modifier.height(14.dp))
+}
+
+@Composable
+private fun ThemeStep(s: AppSettings) {
+    StepHeader("Pick your look", "Light, dark or pure black. The preview above changes as you tap.")
+    OptionGrid(ThemeMode.entries, s.themeMode, { it.label }, { null }, { m -> Graph.settings.update { it.copy(themeMode = m) } }) { m -> ThemeSwatch(m) }
+    Spacer(Modifier.height(8.dp))
+    Group {
+        SwitchRow("Dynamic colour", "Tint the app with soft colours from the playing song's artwork", s.dynamicColor) { v -> Graph.settings.update { it.copy(dynamicColor = v) } }
+    }
+}
+
+@Composable
+private fun GlassStep(s: AppSettings) {
+    StepHeader("Choose your glass", if (Graph.lowEnd) "This device reports low memory, so solid surfaces are always used." else "How floating bars and cards look over your music.")
+    OptionGrid(GlassStyle.entries, s.glass, { it.label }, { glassDetail(it) }, { g -> if (!Graph.lowEnd) Graph.settings.update { it.copy(glass = g) } }) { g -> GlassMini(g) }
+    Spacer(Modifier.height(12.dp))
+    // The real Modifier.glass over a colourful gradient, so the chosen grade is visible full size.
+    GlassLayer(Modifier.fillMaxWidth().height(120.dp).clip(Ms.r20), background = Color.Transparent, overlay = {
+        Box(Modifier.align(Alignment.Center).fillMaxWidth(0.8f).height(64.dp).glass(Ms.r20), contentAlignment = Alignment.Center) {
+            Text("Sample card", style = MaterialTheme.typography.titleMedium)
+        }
+    }) { ArtBackdrop(strong = true) }
+}
+
+private fun glassDetail(g: GlassStyle): String = when (g) {
+    GlassStyle.LIQUID -> "Lens & blur, Android 13+"
+    GlassStyle.FROSTED -> "Soft blur, Android 12+"
+    GlassStyle.WATER -> "Clear aqua, every phone"
+    GlassStyle.SOLID -> "Fastest, easiest to read"
+}
+
+@Composable
+private fun DockStep(s: AppSettings) {
+    StepHeader("Your dock", "The bar with Home, Search and Library at the bottom of the screen.")
+    OptionGrid(DockStyle.entries, s.dockStyle, { it.label }, { null }, { v -> Graph.settings.update { it.copy(dockStyle = v) } }) { v -> DockMini(v) }
+    Spacer(Modifier.height(8.dp))
+    Group {
+        ChoiceRow("While scrolling", NavBarMode.entries, s.navMode, { it.label }, subtitle = "Mini shrinks the bar to a pill, Hide slides it away; scrolling up brings it back.") { v ->
+            Graph.settings.update { it.copy(navBarMode = v, hideNavOnScroll = v != NavBarMode.ALWAYS) }
+        }
+    }
+}
+
+@Composable
+private fun FeelStep(s: AppSettings) {
+    StepHeader("Motion & sound", "Last touches. Everything here is in Settings too.")
+    Group("Motion & touch") {
+        SwitchRow("Reduce motion", "Fades instead of slides and springs", s.reduceMotion) { v -> Graph.settings.update { it.copy(reduceMotion = v) } }
+        RowDivider()
+        SwitchRow("Haptics", "Light taps on controls and gestures", s.haptics) { v -> Graph.settings.update { it.copy(haptics = v) } }
+    }
+    Group("Playback", footer = "Crossfade isn't applied while gapless is on.") {
+        SwitchRow("Gapless", "No silence between tracks of an album", s.gapless) { v -> Graph.settings.update { it.copy(gapless = v) } }
+        RowDivider()
+        SwitchRow("Autoplay", "Keep playing similar songs when the queue ends", s.autoplay) { v -> Graph.settings.update { it.copy(autoplay = v) } }
+        RowDivider()
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Text("Crossfade", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(0, 3, 6, 9).forEach { sec ->
+                    FilterChip(selected = s.crossfadeSec == sec, onClick = { Graph.settings.update { it.copy(crossfadeSec = sec) } },
+                        label = { Text(if (sec == 0) "Off" else "${sec}s") }, shape = Ms.pill)
+                }
+            }
+        }
+    }
+}
+
+// ---- option cards -----------------------------------------------------------------------------------------------
+
+@Composable
+private fun <T> OptionGrid(
+    options: List<T>, selected: T, label: (T) -> String, detail: (T) -> String?, onSelect: (T) -> Unit,
+    illustration: @Composable BoxScope.(T) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        options.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { o ->
+                    OptionCard(o == selected, label(o), detail(o), Modifier.weight(1f), { onSelect(o) }) { illustration(o) }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun OptionCard(selected: Boolean, title: String, detail: String?, modifier: Modifier, onClick: () -> Unit, illustration: @Composable BoxScope.() -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(20.dp)
+    val haptic = LocalHapticFeedback.current
+    val s by Graph.settings.state.collectAsState()
+    Box(modifier
+        .clip(shape)
+        .background(if (selected) cs.primary.copy(alpha = 0.10f) else cs.surfaceContainerLow)
+        .border(if (selected) 2.dp else 1.dp, if (selected) cs.primary else cs.outlineVariant.copy(alpha = 0.5f), shape)
+        .clickable { if (s.haptics) haptic.performHapticFeedback(HapticFeedbackType.LongPress); onClick() }
+        .padding(10.dp)) {
+        Column {
+            Box(Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(12.dp)).background(cs.surfaceContainerHigh), content = illustration)
+            Spacer(Modifier.height(8.dp))
+            Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
+            if (detail != null) Text(detail, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, maxLines = 2)
+        }
+        if (selected) Icon(Icons.Rounded.CheckCircle, "Selected", Modifier.align(Alignment.TopEnd).padding(4.dp).size(22.dp), tint = cs.primary)
+    }
+}
+
+// ---- mini illustrations (drawn shapes, no images) ---------------------------------------------------------------
+
+private fun DrawScope.rr(c: Color, x: Float, y: Float, w: Float, h: Float, r: Float) =
+    drawRoundRect(c, Offset(size.width * x, size.height * y), Size(size.width * w, size.height * h), CornerRadius(r, r))
+
+@Composable
+private fun BoxScope.ThemeSwatch(m: ThemeMode) {
+    val (bg, card, ink) = when (m) {
+        ThemeMode.LIGHT -> Triple(MsLight.Canvas, MsLight.Surface3, MsLight.Accent)
+        ThemeMode.PURE_BLACK -> Triple(Color.Black, Color(0xFF1C1C20), Ms.Accent)
+        else -> Triple(Ms.Canvas, Ms.Surface3, Ms.Accent)
+    }
+    Canvas(Modifier.fillMaxSize()) {
+        drawRect(bg)
+        if (m == ThemeMode.SYSTEM) drawRect(MsLight.Canvas, Offset(size.width / 2f, 0f), Size(size.width / 2f, size.height))
+        rr(card, 0.12f, 0.2f, 0.76f, 0.24f, 12f)
+        rr(card, 0.12f, 0.56f, 0.5f, 0.16f, 10f)
+        drawCircle(ink, size.height * 0.1f, Offset(size.width * 0.8f, size.height * 0.64f))
+    }
+}
+
+@Composable
+private fun BoxScope.GlassMini(g: GlassStyle) {
+    Canvas(Modifier.fillMaxSize()) {
+        drawRect(ArtGradient)
+        drawCircle(ArtAmber, size.height * 0.35f, Offset(size.width * 0.25f, size.height * 0.7f))
+        val film = when (g) {
+            GlassStyle.LIQUID -> Color.White.copy(alpha = 0.28f)
+            GlassStyle.FROSTED -> Color.White.copy(alpha = 0.5f)
+            GlassStyle.WATER -> Color(0xFF7FD6F5).copy(alpha = 0.22f)
+            GlassStyle.SOLID -> Color(0xFF2B282F)
+        }
+        rr(film, 0.15f, 0.28f, 0.7f, 0.44f, 22f)
+        if (g != GlassStyle.SOLID) drawRoundRect(Color.White.copy(alpha = if (g == GlassStyle.LIQUID) 0.8f else 0.45f),
+            Offset(size.width * 0.15f, size.height * 0.28f), Size(size.width * 0.7f, size.height * 0.44f), CornerRadius(22f, 22f), style = Stroke(2.5f))
+    }
+}
+
+@Composable
+private fun BoxScope.DockMini(d: DockStyle) {
+    val bar = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+    val accent = MaterialTheme.colorScheme.primary
+    Canvas(Modifier.fillMaxSize()) {
+        when (d) {
+            DockStyle.CLASSIC -> { rr(bar, 0.06f, 0.42f, 0.88f, 0.18f, 10f); rr(bar, 0f, 0.7f, 1f, 0.3f, 0f) }
+            DockStyle.CAPSULE -> { rr(bar, 0.06f, 0.6f, 0.62f, 0.26f, 60f); drawCircle(accent, size.height * 0.19f, Offset(size.width * 0.84f, size.height * 0.73f)) } // v2.0.16: Orb
+        }
+    }
+}
+
+private fun DrawScope.rr(b: Brush, x: Float, y: Float, w: Float, h: Float, r: Float) =
+    drawRoundRect(b, Offset(size.width * x, size.height * y), Size(size.width * w, size.height * h), CornerRadius(r, r))
+
+// ---- live phone preview -----------------------------------------------------------------------------------------
+
+/** Colourful "album art" blobs on the theme background: what the preview's (and sample card's) glass samples. */
+@Composable
+private fun ArtBackdrop(strong: Boolean) {
+    val bg = MaterialTheme.colorScheme.background
+    Canvas(Modifier.fillMaxSize()) {
+        drawRect(if (strong) Brush.linearGradient(listOf(ArtPink, ArtViolet, ArtTeal)) else Brush.verticalGradient(listOf(bg, bg)))
+        val a = if (strong) 1f else 0.85f
+        drawCircle(ArtPink.copy(alpha = a), size.width * 0.42f, Offset(size.width * 0.15f, size.height * 0.2f))
+        drawCircle(ArtViolet.copy(alpha = a), size.width * 0.38f, Offset(size.width * 0.95f, size.height * 0.45f))
+        drawCircle(ArtTeal.copy(alpha = a), size.width * 0.4f, Offset(size.width * 0.2f, size.height * 0.78f))
+        drawCircle(ArtAmber.copy(alpha = a), size.width * 0.22f, Offset(size.width * 0.75f, size.height * 0.95f))
+    }
+}
+
+/**
+ * v2.0.15: a mini phone that redraws from the current settings. Theme colours come from MaterialTheme (with
+ * dynamic colour simulated from a sample artwork seed); glass uses the real Modifier.glass / liquidGlass.
+ */
+@Composable
+private fun PhonePreview(s: AppSettings, still: Boolean, modifier: Modifier) {
+    val dark = isDarkTheme(s.themeMode)
+    val base = MaterialTheme.colorScheme
+    val scheme = if (s.dynamicColor) softScheme(ArtViolet, dark, s.themeMode == ThemeMode.PURE_BLACK) else base
+    MaterialTheme(colorScheme = scheme, typography = MaterialTheme.typography, shapes = MaterialTheme.shapes) {
+        val frame = RoundedCornerShape(28.dp)
+        Box(modifier.clip(frame).border(3.dp, scheme.outlineVariant, frame).background(scheme.background)) {
+            GlassLayer(Modifier.fillMaxSize(), background = scheme.background, overlay = {
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    val u = maxWidth / 100f
+                    Crossfade(targetState = s.dockStyle, animationSpec = if (still) tween<Float>(0) else tween<Float>(280), label = "preview") { dock ->
+                        Box(Modifier.fillMaxSize()) { HomeSketch(u); DockSketch(dock, u) }
+                    }
+                }
+            }) { ArtBackdrop(strong = false) }
+            // speaker notch
+            Box(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).size(28.dp, 5.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)))
+        }
+    }
+}
+
+@Composable
+private fun Line(u: Dp, w: Float, h: Float = 3f, alpha: Float = 0.7f) =
+    Box(Modifier.width(u * w).height(u * h).clip(CircleShape).background(MaterialTheme.colorScheme.onBackground.copy(alpha = alpha)))
+
+@Composable
+private fun Art(u: Dp, w: Float, h: Float = w, r: Float = 4f, brush: Brush = ArtGradient) =
+    Box(Modifier.width(u * w).height(u * h).clip(RoundedCornerShape(u * r)).background(brush))
+
+@Composable
+private fun BoxScope.HomeSketch(u: Dp) { // 1.0.6: Spotlight Home (big artwork)
+    val glassTint = MaterialTheme.colorScheme.surfaceContainerHigh
+    Column(Modifier.fillMaxSize().padding(start = u * 6, end = u * 6, top = u * 12), verticalArrangement = Arrangement.spacedBy(u * 4)) {
+        Line(u, 40f, 5f, 0.9f)
+        Art(u, 88f, 88f, r = 8f)
+        Line(u, 60f, 6f, 0.9f)
+        Line(u, 36f, alpha = 0.4f)
+        Box(Modifier.width(u * 34).height(u * 12).glass(CircleShape, glassTint))
+    }
+}
+
+@Composable
+private fun BoxScope.DockSketch(d: DockStyle, u: Dp) {
+    val tint = MaterialTheme.colorScheme.surfaceContainerHigh
+    val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.LibraryMusic, Icons.Rounded.Settings)
+    @Composable fun IconsRow(m: Modifier, list: List<ImageVector>) = Row(m, horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+        list.forEachIndexed { i, ic -> Icon(ic, null, Modifier.size(u * 8), tint = if (i == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+    @Composable fun Mini(m: Modifier) = Row(m.glass(RoundedCornerShape(u * 5), tint, strong = true).padding(u * 2.5f), verticalAlignment = Alignment.CenterVertically) {
+        Art(u, 12f, r = 3f); Spacer(Modifier.width(u * 3)); Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(u * 1.5f)) { Line(u, 30f); Line(u, 18f, alpha = 0.4f) }
+        Icon(Icons.Rounded.PlayArrow, null, Modifier.size(u * 9))
+    }
+    Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
+        when (d) {
+            DockStyle.CLASSIC -> {
+                Mini(Modifier.padding(horizontal = u * 4).fillMaxWidth())
+                Spacer(Modifier.height(u * 2))
+                IconsRow(Modifier.fillMaxWidth().height(u * 16).glass(RoundedCornerShape(0.dp), tint, strong = true), icons)
+            }
+            DockStyle.CAPSULE -> { // v2.0.16: Orb — glass tab pill + floating cover orb at bottom-right
+                Row(Modifier.padding(start = u * 6, end = u * 6, bottom = u * 6).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(u * 3), verticalAlignment = Alignment.CenterVertically) {
+                    IconsRow(Modifier.weight(1f).height(u * 15).glass(CircleShape, tint, strong = true), icons.take(3))
+                    Box(Modifier.size(u * 18).glass(CircleShape, tint, strong = true), contentAlignment = Alignment.Center) {
+                        Art(u, 14f, r = 7f)
+                    }
+                }
+            }
+        }
+    }
+}

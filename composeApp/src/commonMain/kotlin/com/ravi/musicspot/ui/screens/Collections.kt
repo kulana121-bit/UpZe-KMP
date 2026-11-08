@@ -1,0 +1,558 @@
+package com.ravi.musicspot.ui.screens
+
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.AddToHomeScreen
+import androidx.compose.material.icons.rounded.PushPin
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.automirrored.rounded.Sort
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import com.ravi.musicspot.ui.motion.scroll3d
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.BookmarkBorder
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.LibraryMusic
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.ravi.musicspot.Graph
+import com.ravi.musicspot.data.DownloadEntry
+import com.ravi.musicspot.model.Collection
+import com.ravi.musicspot.model.SourceKind
+import com.ravi.musicspot.model.Track
+import com.ravi.musicspot.ui.Menus
+import com.ravi.musicspot.ui.Pills
+import com.ravi.musicspot.ui.Route
+import com.ravi.musicspot.ui.components.Artwork
+import com.ravi.musicspot.ui.components.Badge
+import com.ravi.musicspot.ui.components.CollectionCard
+import com.ravi.musicspot.ui.components.EmptyState
+import com.ravi.musicspot.ui.components.ErrorState
+import com.ravi.musicspot.ui.components.GlassTopBar
+import com.ravi.musicspot.ui.components.HorizontalShelf
+import com.ravi.musicspot.ui.components.Loading
+import com.ravi.musicspot.ui.components.SectionHeader
+import com.ravi.musicspot.ui.components.TrackCard
+import com.ravi.musicspot.ui.components.TrackRow
+import com.ravi.musicspot.ui.components.formatBytes
+import com.ravi.musicspot.ui.components.formatTime
+import com.ravi.musicspot.ui.glass.GlassLayer
+import com.ravi.musicspot.ui.openCollection
+import com.ravi.musicspot.ui.theme.Ms
+import com.ravi.musicspot.yt.CollectionPage
+import kotlinx.coroutines.launch
+import com.ravi.musicspot.ui.motion.sharedCover
+import com.ravi.musicspot.ui.motion.staggerIn
+
+/** Generic page for any list of songs: header art, play / shuffle / download-all, and the rows. */
+/**
+ * 1.0.4: every song list (online playlists and albums, Liked, History, Downloads, Cached, On this device) gets the
+ * playlist tools that 1.0.2 gave only to your own playlists: search inside, sort, Play next, Add to queue, Share,
+ * and Pin where it means something. Own playlists keep their own (persisted) tools and pass tools = false.
+ */
+@Composable
+fun TrackListPage(
+    title: String,
+    subtitle: String?,
+    art: String?,
+    tracks: List<Track>,
+    emptyIcon: ImageVector = Icons.AutoMirrored.Rounded.QueueMusic,
+    emptyTitle: String = "Nothing here yet",
+    emptyBody: String = "",
+    headerActions: @Composable () -> Unit = {},
+    description: String? = null,
+    rowTrailing: (@Composable (Int, Track) -> Unit)? = null,
+    extra: (androidx.compose.foundation.lazy.LazyListScope.() -> Unit)? = null,
+    sharedKey: String? = null,
+    loading: Boolean = false,
+    rowMenu: ((Int, Track) -> Unit)? = null,
+    aboveTracks: (androidx.compose.foundation.lazy.LazyListScope.() -> Unit)? = null,
+    filteredEmpty: Boolean = false,
+    tools: Boolean = true,
+    shareLink: String? = null,
+    pin: Pair<Boolean, () -> Unit>? = null,
+    moreItems: (@Composable (close: () -> Unit) -> Unit)? = null,
+    /**
+     * 1.0.6: the caller guarantees every song in [tracks] is unique (History). Rows are then keyed by the song id
+     * alone, so a song that moves (played again → top of History) keeps its row and animates to its new place.
+     */
+    uniqueKeys: Boolean = false,
+) {
+    if (!tools || aboveTracks != null) {
+        TrackListPageCore(title, subtitle, art, tracks, emptyIcon, emptyTitle, emptyBody, headerActions, description, rowTrailing, extra, sharedKey, loading, rowMenu, aboveTracks, filteredEmpty, uniqueKeys)
+        return
+    }
+    var query by remember(title) { mutableStateOf("") }
+    var searching by remember(title) { mutableStateOf(false) }
+    var sort by remember(title) { mutableStateOf(com.ravi.musicspot.logic.PlaylistSort.CUSTOM) }
+    var sortMenu by remember { mutableStateOf(false) }
+    var moreMenu by remember { mutableStateOf(false) }
+    // Original positions travel with the songs, so a row menu that needs the index (History) still gets the right entry.
+    val shownIdx = remember(tracks, query, sort) {
+        val view = com.ravi.musicspot.logic.PlaylistView.apply(tracks, query, sort)
+        val used = BooleanArray(tracks.size)
+        view.map { t -> var k = -1; for (j in tracks.indices) if (!used[j] && tracks[j] === t) { k = j; break }
+            if (k < 0) k = tracks.indexOfFirst { it.id == t.id }.coerceAtLeast(0); if (k < used.size) used[k] = true; k }
+    }
+    val shown = remember(shownIdx, tracks) { shownIdx.mapNotNull { tracks.getOrNull(it) } }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    TrackListPageCore(title, subtitle, art, shown, emptyIcon, emptyTitle, emptyBody,
+        headerActions = {
+            headerActions()
+            if (!loading && tracks.isNotEmpty()) Box {
+                IconButton(onClick = { moreMenu = true }) { Icon(Icons.Rounded.MoreVert, "More options") }
+                androidx.compose.material3.DropdownMenu(moreMenu, onDismissRequest = { moreMenu = false }) {
+                    @Composable fun item(icon: ImageVector, label: String, enabled: Boolean = true, onClick: () -> Unit) =
+                        androidx.compose.material3.DropdownMenuItem(text = { Text(label) }, leadingIcon = { Icon(icon, null) }, enabled = enabled, onClick = { moreMenu = false; onClick() })
+                    item(Icons.Rounded.SkipNext, "Play next", shown.isNotEmpty()) { Graph.player.playNextAll(shown); Pills.show("${shown.size} songs play next") }
+                    item(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue", shown.isNotEmpty()) { Graph.player.addToQueue(shown); Pills.show("Added ${shown.size} songs to queue") }
+                    pin?.let { (pinned, toggle) -> item(Icons.Rounded.PushPin, if (pinned) "Unpin from Library" else "Pin to top of Library") { toggle(); Pills.show(if (pinned) "Unpinned" else "Pinned to the top of Library") } }
+                    item(Icons.Rounded.Share, "Share", shown.isNotEmpty()) {
+                        val text = com.ravi.musicspot.logic.PlaylistView.shareText(title, shown, shareLink)
+                        if (shareLink != null) com.ravi.musicspot.core.openPlatformUrl(shareLink) else com.ravi.musicspot.ui.Pills.show("Sharing: " + title)
+                    }
+                    moreItems?.invoke { moreMenu = false }
+                }
+            }
+        },
+        description = description, rowTrailing = rowTrailing?.let { rt -> { i, t -> rt(shownIdx.getOrElse(i) { i }, t) } }, extra = extra, sharedKey = sharedKey, loading = loading,
+        rowMenu = rowMenu?.let { rm -> { i, t -> rm(shownIdx.getOrElse(i) { i }, t) } },
+        aboveTracks = if (loading || tracks.size < 2) null else { {
+            item(key = "list-tools", contentType = "list-tools") { // 1.0.5: contentType
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (searching) {
+                        OutlinedTextField(query, { query = it }, singleLine = true, placeholder = { Text("Search in this list") },
+                            leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                            trailingIcon = { IconButton(onClick = { if (query.isEmpty()) searching = false else query = "" }) { Icon(Icons.Rounded.Close, "Clear search") } },
+                            shape = Ms.pill, modifier = Modifier.weight(1f).focusRequester(focus))
+                        LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+                    } else {
+                        androidx.compose.material3.AssistChip(onClick = { searching = true }, label = { Text("Search") }, leadingIcon = { Icon(Icons.Rounded.Search, null, Modifier.size(18.dp)) })
+                        Spacer(Modifier.weight(1f))
+                    }
+                    Box {
+                        androidx.compose.material3.AssistChip(onClick = { sortMenu = true }, label = { Text(if (sort == com.ravi.musicspot.logic.PlaylistSort.CUSTOM) "Sort" else sort.label, maxLines = 1) },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Sort, null, Modifier.size(18.dp), tint = if (sort != com.ravi.musicspot.logic.PlaylistSort.CUSTOM) MaterialTheme.colorScheme.primary else androidx.compose.material3.LocalContentColor.current) },
+                            modifier = Modifier.padding(start = 8.dp))
+                        androidx.compose.material3.DropdownMenu(sortMenu, onDismissRequest = { sortMenu = false }) {
+                            Text("Sort by", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                            com.ravi.musicspot.logic.PlaylistSort.entries.forEach { o ->
+                                androidx.compose.material3.DropdownMenuItem(text = { Text(if (o == com.ravi.musicspot.logic.PlaylistSort.CUSTOM) "Original order" else o.label) }, onClick = { sort = o; sortMenu = false },
+                                    trailingIcon = { if (o == sort) Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary) })
+                            }
+                        }
+                    }
+                }
+            }
+        } },
+        filteredEmpty = tracks.isNotEmpty() && query.isNotBlank(), uniqueKeys = uniqueKeys)
+}
+
+@Composable
+private fun TrackListPageCore(
+    title: String,
+    subtitle: String?,
+    art: String?,
+    tracks: List<Track>,
+    emptyIcon: ImageVector = Icons.AutoMirrored.Rounded.QueueMusic,
+    emptyTitle: String = "Nothing here yet",
+    emptyBody: String = "",
+    headerActions: @Composable () -> Unit = {},
+    description: String? = null,
+    rowTrailing: (@Composable (Int, Track) -> Unit)? = null,
+    extra: (androidx.compose.foundation.lazy.LazyListScope.() -> Unit)? = null,
+    sharedKey: String? = null,
+    loading: Boolean = false,
+    /** 1.0.2: opens a row's song menu (⋮ and long-press); default is the plain song menu. */
+    rowMenu: ((Int, Track) -> Unit)? = null,
+    /** 1.0.2: content between the header and the songs (the playlist search field). */
+    aboveTracks: (androidx.compose.foundation.lazy.LazyListScope.() -> Unit)? = null,
+    /** 1.0.2: shown instead of the empty state when [tracks] is empty because of a filter. */
+    filteredEmpty: Boolean = false,
+    /** 1.0.6: see [TrackListPage]; ids are unique, so rows are keyed by id and animate when they move. */
+    uniqueKeys: Boolean = false,
+) {
+    val nav = LocalNav.current
+    val header = rememberHeaderHeight() // v2.0.17
+    GlassLayer(Modifier.fillMaxSize(), overlay = { GlassTopBar(title, onBack = { nav.back() }, height = header) }) {
+        val list3d = androidx.compose.foundation.lazy.rememberLazyListState()
+        val total = remember(tracks) { tracks.sumOf { it.durationMs } } // 1.0.5: summed once per list, not per recomposition
+        LazyColumn(Modifier.fillMaxSize(), state = list3d, contentPadding = pagePadding(top = 72.dp, header = header.value)) {
+            item(key = "tl-header", contentType = "tl-header") { // 1.0.5: key + contentType
+                Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Artwork(art ?: tracks.firstOrNull()?.artUrl, Modifier.size(200.dp).sharedCover(sharedKey), Ms.r20, title)
+                    Spacer(Modifier.height(16.dp))
+                    Text(title, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    subtitle?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                    if (tracks.isNotEmpty()) Text("${tracks.size} songs${if (total > 0) " · ${formatTime(total)}" else ""}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Button(onClick = { Graph.player.play(tracks) }, enabled = tracks.isNotEmpty()) { Icon(Icons.Rounded.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Play") }
+                        FilledTonalButton(onClick = { Graph.player.play(tracks, shuffle = true) }, enabled = tracks.isNotEmpty()) { Icon(Icons.Rounded.Shuffle, null); Spacer(Modifier.width(6.dp)); Text("Shuffle") }
+                        IconButton(onClick = {
+                            val todo = tracks.filter { it.source != SourceKind.LOCAL && !Graph.downloads.isDownloaded(it.id) }
+                            todo.forEach { Graph.downloads.enqueue(it, Graph.settings.value.wifiOnlyDownloads) }
+                            Pills.show(if (todo.isEmpty()) "Already downloaded" else "Downloading ${todo.size} songs")
+                        }, enabled = tracks.isNotEmpty()) { Icon(Icons.Rounded.Download, "Download all") }
+                        headerActions()
+                    }
+                    description?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp)) }
+                }
+            }
+            aboveTracks?.invoke(this)
+            if (loading) item(key = "tl-loading", contentType = "loading") { Loading() }
+            else if (tracks.isEmpty() && filteredEmpty) item(key = "tl-filtered-empty", contentType = "empty") { EmptyState(Icons.Rounded.Search, "No matching songs", "Try another word.") }
+            else if (tracks.isEmpty()) item(key = "tl-empty", contentType = "empty") { EmptyState(emptyIcon, emptyTitle, emptyBody) }
+            // 1.0.5: the same song can appear twice (History, playlists), so the key carries the position; "t:" namespaces
+            // it away from the header / tools / extra keys (the pending-download "p-"+id keys could collide with "${id}-$i").
+            // 1.0.6: with uniqueKeys (History) the key is the id alone, and animateItem() glides a replayed song to the
+            // top instead of every row below it re-binding (placement spring; fade for rows that come and go).
+            items(tracks.size, key = { if (uniqueKeys) "t:${tracks[it].id}" else "t:${tracks[it].id}:$it" }, contentType = { "track" }) { i -> // 1.0.1: contentType
+                val t = tracks[i]
+                androidx.compose.foundation.layout.Box((if (uniqueKeys) Modifier.animateItem() else Modifier).scroll3d(list3d, i + 1, focus = 0.5f, maxTilt = 24f, minScale = 0.9f, minAlpha = 0.55f, flat = 0.45f, flatRows = com.ravi.musicspot.ui.motion.Depth.FLAT_TRACKS).staggerIn(i, enabled = i < 14)) { TrackRow(t, onClick = { Graph.player.play(tracks, i) }, onMore = { rowMenu?.invoke(i, t) ?: run { Menus.track = t } },
+                    onLongPress = { rowMenu?.invoke(i, t) ?: run { Menus.track = t } }, trailing = rowTrailing?.let { { it(i, t) } }) }
+            }
+            extra?.invoke(this)
+        }
+    }
+}
+
+@Composable
+fun RemoteCollectionScreen(c: Collection) {
+    val nav = LocalNav.current
+    val lib by Graph.library.data.collectAsState()
+    val load = rememberLoad(c.id) {
+        when {
+            c.id.startsWith("yt:") -> Graph.yt.collection(c.id.removePrefix("yt:"))
+            c.id.startsWith("js:al:") -> Graph.jiosaavn.album(c.id.removePrefix("js:al:")).let { CollectionPage(it.first, it.second) }
+            c.id.startsWith("js:pl:") -> Graph.jiosaavn.playlist(c.id.removePrefix("js:pl:")).let { CollectionPage(it.first, it.second) }
+            c.id.startsWith("ia:") -> Graph.archive.item(c.id.removePrefix("ia:")).let { CollectionPage(it.first, it.second) }
+            else -> throw IllegalStateException("Unknown collection")
+        }
+    }
+    com.ravi.musicspot.ui.motion.StateCrossfade(load.state, key = { if (it is Load.Failed) 1 else 0 }) { s -> when (s) {
+        // Header art (same page while loading and loaded, so only the error state crossfades) (shared-element target) shows immediately while the songs load.
+        is Load.Loading -> TrackListPage(c.title, c.subtitle, c.artUrl, emptyList(), sharedKey = "cover:${c.id}", loading = true, tools = false)
+        is Load.Failed -> GlassLayer(Modifier.fillMaxSize(), overlay = { GlassTopBar(c.title, onBack = { nav.back() }) }) { Box(Modifier.padding(top = 100.dp)) { ErrorState(s.message, load.retry) } }
+        is Load.Ok -> {
+            val page = s.data
+            val col = page.collection.copy(title = page.collection.title.ifBlank { c.title }, artUrl = page.collection.artUrl ?: c.artUrl)
+            val saved = lib.saved.any { it.id == col.id }
+            val pinnedTop = lib.saved.firstOrNull()?.id == col.id
+            TrackListPage(col.title, col.subtitle ?: c.subtitle, col.artUrl ?: c.artUrl, page.tracks, description = page.description, sharedKey = "cover:${c.id}",
+                shareLink = col.id.takeIf { it.startsWith("yt:") }?.removePrefix("yt:")?.let { id ->
+                    if (col.kind == Collection.Kind.ALBUM) "https://music.youtube.com/browse/$id" else "https://music.youtube.com/playlist?list=" + id.removePrefix("VL") },
+                pin = (saved && pinnedTop) to { Graph.library.pinSaved(col, !(saved && pinnedTop)) },
+                emptyTitle = "No playable songs", emptyBody = "This ${if (col.kind == Collection.Kind.ALBUM) "album" else "playlist"} has no songs we can play.",
+                headerActions = {
+                    IconButton(onClick = { Graph.library.toggleSaved(col); Pills.show(if (saved) "Removed from library" else "Saved to library") }) {
+                        Icon(if (saved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, if (saved) "Remove from library" else "Save to library")
+                    }
+                    IconButton(onClick = { val p = Graph.library.createPlaylist(col.title, page.tracks, art = col.artUrl); Pills.show("Copied to your playlist ${p.name}") }) {
+                        Icon(Icons.Rounded.LibraryMusic, "Copy to my playlists")
+                    }
+                },
+                extra = {
+                    page.shelves.forEachIndexed { n, sh -> // 1.0.5: keyed + typed shelf items
+                        item(key = "rc-sh:$n", contentType = "section-header") { SectionHeader(sh.title) }
+                        if (sh.collections.isNotEmpty()) item(key = "rc-shc:$n", contentType = "collection-shelf") { HorizontalShelf(sh.collections, { it.id }) { x -> CollectionCard(x, 132.dp) { nav.openCollection(x) } } }
+                    }
+                })
+        }
+    } }
+}
+
+@Composable
+fun ArtistScreen(r: Route.Artist) {
+    val nav = LocalNav.current
+    val lib by Graph.library.data.collectAsState()
+    val load = rememberLoad(r.id) { Graph.yt.artist(r.id.removePrefix("yt:")) }
+    val header = rememberHeaderHeight() // v2.0.17
+    GlassLayer(Modifier.fillMaxSize(), overlay = { GlassTopBar(r.name, onBack = { nav.back() }, height = header) }) {
+        com.ravi.musicspot.ui.motion.StateCrossfade(load.state) { s -> when (s) {
+            is Load.Loading -> Box(Modifier.padding(top = 120.dp)) { Loading() }
+            is Load.Failed -> Box(Modifier.padding(top = 100.dp)) { ErrorState(s.message, load.retry) }
+            is Load.Ok -> {
+                val a = s.data
+                val saved = lib.saved.any { it.id == a.collection.id }
+                // v2.0.14: distinct ids (duplicate keys crash LazyColumn); play by index, not indexOf.
+                val top = remember(a) { a.topTracks.distinctBy { it.id } } // 1.0.5: hoisted + remembered (was rebuilt in the list builder)
+                val top10 = remember(top) { top.take(10) }
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = pagePadding(top = 72.dp, header = header.value)) {
+                    item(key = "ar-header", contentType = "artist-header") { // 1.0.5: key + contentType
+                        Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Artwork(a.collection.artUrl, Modifier.size(180.dp).sharedCover("cover:${r.id}"), CircleShape, a.collection.title)
+                            Spacer(Modifier.height(12.dp))
+                            Text(a.collection.title.ifBlank { r.name }, style = MaterialTheme.typography.headlineMedium)
+                            a.collection.subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            Spacer(Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Button(onClick = { Graph.player.play(a.topTracks) }, enabled = a.topTracks.isNotEmpty()) { Icon(Icons.Rounded.PlayArrow, null); Text("Play") }
+                                FilledTonalButton(onClick = { Graph.library.toggleSaved(a.collection) }) { Text(if (saved) "Following" else "Follow") }
+                            }
+                            a.description?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp)) }
+                        }
+                    }
+                    if (top.isNotEmpty()) {
+                        item(key = "ar-top-h", contentType = "section-header") { SectionHeader("Top songs") }
+                        itemsIndexed(top10, key = { _, it -> "ar-t:" + it.id }, contentType = { _, _ -> "track" }) { i, t -> Box(Modifier.staggerIn(i + 1)) { TrackRow(t, onClick = { Graph.player.play(top, i) }, onMore = { Menus.track = t }) } }
+                    }
+                    a.shelves.forEachIndexed { i, sh ->
+                        item(key = "s$i", contentType = "section-header") { SectionHeader(sh.title) }
+                        if (sh.tracks.isNotEmpty()) item(key = "st$i", contentType = "track-shelf") { HorizontalShelf(sh.tracks, { it.id }) { t -> TrackCard(t, 132.dp, onClick = { Graph.player.play(sh.tracks, sh.tracks.indexOf(t)) }) } }
+                        if (sh.collections.isNotEmpty()) item(key = "sc$i", contentType = "collection-shelf") { HorizontalShelf(sh.collections, { it.id }) { c -> CollectionCard(c, 132.dp) { nav.openCollection(c) } } }
+                    }
+                }
+            }
+        } }
+    }
+}
+
+@Composable
+fun LocalPlaylistScreen(id: String) {
+    val nav = LocalNav.current
+    val lib by Graph.library.data.collectAsState()
+    // v2.0.16: Delete already navigates back; without this flag the missing-playlist guard popped a second screen.
+    var leaving by remember(id) { mutableStateOf(false) }
+    val p = lib.playlists.firstOrNull { it.id == id } ?: run { if (!leaving) LaunchedEffect(Unit) { leaving = true; nav.back() }; return }
+    var rename by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    // 1.0.2: search inside the playlist, sort (kept per playlist), and a ⋮ with Play next / Add to queue / Pin / Share.
+    var query by remember(id) { mutableStateOf("") }
+    var searching by remember(id) { mutableStateOf(false) }
+    var sortMenu by remember { mutableStateOf(false) }
+    var moreMenu by remember { mutableStateOf(false) }
+    val sort = com.ravi.musicspot.logic.PlaylistSort.of(p.sort)
+    val shown = remember(p.tracks, query, sort) { com.ravi.musicspot.logic.PlaylistView.apply(p.tracks, query, sort) }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    TrackListPage(p.name, when {
+        p.origin.startsWith("spotify:") -> "Synced from Spotify · plays via your other sources"
+        p.origin.startsWith("yt:") -> "Synced from YouTube Music"
+        else -> if (p.pinned) "Your playlist · pinned" else "Your playlist"
+    }, p.artUrl, shown, sharedKey = "cover:${p.id}", emptyTitle = "Empty playlist", emptyBody = "Add songs from any song's ⋮ menu.",
+        filteredEmpty = p.tracks.isNotEmpty() && query.isNotBlank(),
+        headerActions = {
+            IconButton(onClick = { searching = !searching; if (!searching) query = "" }, enabled = p.tracks.isNotEmpty()) { Icon(Icons.Rounded.Search, "Search in playlist") }
+            Box {
+                IconButton(onClick = { sortMenu = true }, enabled = p.tracks.size > 1) {
+                    Icon(Icons.AutoMirrored.Rounded.Sort, "Sort by", tint = if (sort != com.ravi.musicspot.logic.PlaylistSort.CUSTOM) MaterialTheme.colorScheme.primary else androidx.compose.material3.LocalContentColor.current)
+                }
+                androidx.compose.material3.DropdownMenu(sortMenu, onDismissRequest = { sortMenu = false }) {
+                    Text("Sort by", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                    com.ravi.musicspot.logic.PlaylistSort.entries.forEach { o ->
+                        androidx.compose.material3.DropdownMenuItem(text = { Text(o.label) }, onClick = { Graph.library.setPlaylistSort(p.id, o.name); sortMenu = false },
+                            trailingIcon = { if (o == sort) Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary) })
+                    }
+                }
+            }
+            Box {
+                IconButton(onClick = { moreMenu = true }) { Icon(Icons.Rounded.MoreVert, "More options") }
+                androidx.compose.material3.DropdownMenu(moreMenu, onDismissRequest = { moreMenu = false }) {
+                    @Composable fun item(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, enabled: Boolean = true, onClick: () -> Unit) =
+                        androidx.compose.material3.DropdownMenuItem(text = { Text(label) }, leadingIcon = { Icon(icon, null) }, enabled = enabled, onClick = { moreMenu = false; onClick() })
+                    item(Icons.Rounded.SkipNext, "Play next", shown.isNotEmpty()) { Graph.player.playNextAll(shown); Pills.show("${shown.size} songs play next") }
+                    item(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue", shown.isNotEmpty()) { Graph.player.addToQueue(shown); Pills.show("Added ${shown.size} songs to queue") }
+                    item(Icons.Rounded.PushPin, if (p.pinned) "Unpin from Library" else "Pin to top of Library") {
+                        Graph.library.setPlaylistPinned(p.id, !p.pinned); Pills.show(if (p.pinned) "Unpinned" else "Pinned to the top of Library")
+                    }
+                    if (com.ravi.musicspot.core.TrackShortcuts.supported()) item(Icons.Rounded.AddToHomeScreen, "Add to home screen", p.tracks.isNotEmpty()) {
+                        com.ravi.musicspot.core.IoScope.launch {
+                            val ok = com.ravi.musicspot.core.TrackShortcuts.pinPlaylist(p.id, p.name, p.artUrl)
+                            Pills.show(if (ok) "Added. Confirm on your home screen if asked" else "Your launcher doesn't allow this")
+                        }
+                    }
+                    item(Icons.Rounded.Share, "Share", p.tracks.isNotEmpty()) {
+                        val link = p.origin.takeIf { it.startsWith("yt:") }?.removePrefix("yt:")?.let { "https://music.youtube.com/playlist?list=" + it.removePrefix("VL") }
+                        val text = com.ravi.musicspot.logic.PlaylistView.shareText(p.name, shown, link)
+                        com.ravi.musicspot.core.PlatformActions.shareText(text, p.name)
+                    }
+                    if (p.origin.startsWith("spotify:")) item(Icons.Rounded.Refresh, "Sync now") { Graph.sync.syncSpotify(setOf(p.origin.removePrefix("spotify:"))); Pills.show("Syncing from Spotify…") }
+                    if (!p.isSynced) item(Icons.Rounded.Edit, "Rename") { rename = true }
+                    item(Icons.Rounded.Delete, "Delete playlist") { confirmDelete = true }
+                }
+            }
+        },
+        aboveTracks = if (!searching) null else { {
+            item(key = "pl-search", contentType = "list-tools") { // 1.0.5: contentType
+                OutlinedTextField(query, { query = it }, singleLine = true, placeholder = { Text("Search in this playlist") },
+                    leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                    trailingIcon = { IconButton(onClick = { if (query.isEmpty()) searching = false else query = "" }) { Icon(Icons.Rounded.Close, "Clear search") } },
+                    shape = com.ravi.musicspot.ui.theme.Ms.pill,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).focusRequester(focus))
+                LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+            }
+        } },
+        // Own playlists: ⋮ / long-press on a song also offers "Remove from playlist".
+        rowMenu = if (p.isSynced) null else { _, t -> Menus.playlistId = p.id; Menus.track = t },
+        rowTrailing = if (p.isSynced) { i, t -> if (t.source == SourceKind.SPOTIFY) Badge("UNMATCHED") } else null, tools = false)
+    com.ravi.musicspot.ui.motion.MotionDialog(if (rename) Unit else null, onDismiss = { rename = false }) {
+        var name by remember { mutableStateOf(p.name) }
+        com.ravi.musicspot.ui.motion.AlertDialogCard(title = { Text("Rename playlist") },
+            text = { OutlinedTextField(name, { name = it }, singleLine = true) },
+            confirmButton = { TextButton(onClick = { Graph.library.renamePlaylist(p.id, name); rename = false }) { Text("Save") } },
+            dismissButton = { TextButton(onClick = { rename = false }) { Text("Cancel") } })
+    }
+    com.ravi.musicspot.ui.motion.MotionAlertDialog(visible = confirmDelete, onDismissRequest = { confirmDelete = false }, title = { Text("Delete “${p.name}”?") },
+        text = { Text(if (p.isSynced) "It is removed from UpZe only; your account keeps it, and the next sync can bring it back." else "This can't be undone.") },
+        confirmButton = { TextButton(onClick = { leaving = true; Graph.library.deletePlaylist(p.id); confirmDelete = false; nav.back() }) { Text("Delete") } },
+        dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } })
+}
+
+@Composable
+fun LikedScreen() {
+    val lib by Graph.library.data.collectAsState()
+    TrackListPage("Liked songs", "Saved on this device${if (Graph.tube.signedIn) " · includes your YouTube Music likes" else ""}", null, lib.liked,
+        emptyIcon = Icons.Rounded.Favorite, emptyTitle = "No liked songs yet", emptyBody = "Tap ♥ on any song. Signing in to YouTube Music or Spotify imports your likes.")
+}
+
+@Composable
+fun HistoryScreen() {
+    val lib by Graph.library.data.collectAsState()
+    var confirm by remember { mutableStateOf(false) }
+    // 1.0.5: stable list instance per history change. 1.0.6: History holds each song once (Library.recordPlay upserts);
+    // distinctBy is a cheap guard so a duplicate id can never reach the id-only lazy keys below.
+    val historyTracks = remember(lib.history) { lib.history.map { it.track }.distinctBy { it.id } }
+    TrackListPage("History", "What you played, newest first", null, historyTracks, uniqueKeys = true,
+        emptyIcon = Icons.Rounded.History, emptyTitle = "No history yet", emptyBody = "Songs you play show up here.",
+        headerActions = { IconButton(onClick = { confirm = true }, enabled = lib.history.isNotEmpty()) { Icon(Icons.Rounded.Delete, "Clear history") } },
+        // 1.0.2: ⋮ or long-press on a song offers "Remove from history" for that one entry.
+        rowMenu = { _, t -> Menus.historyAt = lib.history.firstOrNull { it.track.id == t.id }?.atMs; Menus.track = t })
+    com.ravi.musicspot.ui.motion.MotionAlertDialog(visible = confirm, onDismissRequest = { confirm = false }, title = { Text("Clear listening history?") },
+        confirmButton = { TextButton(onClick = { Graph.library.clearHistory(); confirm = false }) { Text("Clear") } },
+        dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } })
+}
+
+@Composable
+fun DownloadsScreen() {
+    val dls by Graph.downloads.items.collectAsState()
+    // 1.0.5: derived once per downloads change (was re-filtered/sorted on every recomposition, and the new list instance
+    // re-ran TrackListPage's search/sort view). Pending entries keep their map key, which is unique by construction.
+    val done = remember(dls) { dls.values.filter { it.state == DownloadEntry.State.DONE }.sortedByDescending { it.atMs } }
+    val doneTracks = remember(done) { done.map { it.track } }
+    val pending = remember(dls) { dls.entries.filter { it.value.state != DownloadEntry.State.DONE } }
+    val used = remember(dls) { Graph.downloads.usedBytes() }
+    TrackListPage("Downloads", "${done.size} songs · ${formatBytes(used)} on this device", null, doneTracks,
+        emptyIcon = Icons.Rounded.Download, emptyTitle = "No downloads yet", emptyBody = "Download songs, albums or playlists from their ⋮ menu or the download button. They play offline.",
+        rowTrailing = { _, t -> dls[t.id]?.info?.let { i -> Badge(listOfNotNull(i.codec, i.bitrateKbps?.let { "$it" }).joinToString(" ")) } },
+        extra = {
+            if (pending.isNotEmpty()) {
+                item(key = "dl-pending-h", contentType = "section-header") { SectionHeader("In progress") }
+                // 1.0.5: keyed by the downloads map key (unique) in its own namespace; "p-"+track.id could repeat / collide.
+                items(pending, key = { "dl-p:" + it.key }, contentType = { "pending-download" }) { entry ->
+                    val e = entry.value
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(e.track.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(when (e.state) {
+                                    DownloadEntry.State.FAILED -> "Failed: ${e.error}"
+                                    DownloadEntry.State.QUEUED -> "Waiting${if (Graph.settings.value.wifiOnlyDownloads) " for Wi-Fi" else ""}…"
+                                    else -> "${formatBytes(e.bytes)} of ${if (e.total > 0) formatBytes(e.total) else "?"}"
+                                }, style = MaterialTheme.typography.bodySmall, color = if (e.state == DownloadEntry.State.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            if (e.state == DownloadEntry.State.FAILED) TextButton(onClick = { Graph.downloads.retry(e.track.id, Graph.settings.value.wifiOnlyDownloads) }) { Text("Retry") }
+                            TextButton(onClick = { Graph.downloads.cancel(e.track.id) }) { Text("Cancel") }
+                        }
+                        if (e.state == DownloadEntry.State.RUNNING) LinearProgressIndicator({ e.progress }, Modifier.fillMaxWidth())
+                    }
+                }
+            }
+        })
+}
+
+@Composable
+fun DeviceMusicScreen() {
+    val tracks by Graph.local.tracks.collectAsState()
+    val settings by Graph.settings.state.collectAsState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var granted by remember { mutableStateOf(Graph.local.hasPermission()) }
+    LaunchedEffect(granted, settings.enabledSources) {
+        // v2.0.16: scan can throw (permission revoked, IO); uncaught it reached CrashGuard and killed the app.
+        if (granted && SourceKind.LOCAL in settings.enabledSources) try { Graph.local.scan() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { Pills.show("Couldn't scan this device") }
+    }
+    if (!granted || SourceKind.LOCAL !in settings.enabledSources) {
+        val nav = LocalNav.current
+        GlassLayer(Modifier.fillMaxSize(), overlay = { GlassTopBar("On this device", onBack = { nav.back() }) }) {
+            Box(Modifier.padding(top = 100.dp)) {
+                EmptyState(Icons.Rounded.PhoneAndroid, "Play music stored on this phone",
+                    "UpZe reads your audio files (FLAC, ALAC, WAV, MP3, AAC…) only after you allow it. Nothing is uploaded.", "Allow access") {
+                    Graph.settings.update { it.copy(enabledSources = it.enabledSources + SourceKind.LOCAL) }
+                    granted = true
+                    scope.launch { runCatching { Graph.local.scan() } }
+                }
+            }
+        }
+    } else TrackListPage("On this device", "Lossless files play untouched at their native quality", null, tracks,
+        emptyIcon = Icons.Rounded.PhoneAndroid, emptyTitle = "No music files found", emptyBody = "Copy audio files to your phone's Music folder.",
+        headerActions = { IconButton(onClick = { scope.launch { /* v2.0.14: scan can throw (permission revoked, IO) */ val n = runCatching { Graph.local.scan().size }.getOrNull(); Pills.show(if (n != null) "Found $n songs" else "Couldn't scan this device") } }) { Icon(Icons.Rounded.Refresh, "Rescan") } },
+        rowTrailing = { _, t -> t.format?.let { f -> if (com.ravi.musicspot.source.QualityEstimate.isLosslessFormat(f)) Badge(f.uppercase(), MaterialTheme.colorScheme.primary) } })
+}
+
+@Composable
+fun SavedScreen() {
+    val nav = LocalNav.current
+    val lib by Graph.library.data.collectAsState()
+    val header = rememberHeaderHeight() // v2.0.17
+    val savedPairs = remember(lib.saved) { lib.saved.chunked(2) }
+    GlassLayer(Modifier.fillMaxSize(), overlay = { GlassTopBar("Albums & artists", onBack = { nav.back() }, height = header) }) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = pagePadding(top = 72.dp, header = header.value)) {
+            if (lib.saved.isEmpty()) item(key = "saved-empty", contentType = "empty") { EmptyState(Icons.Rounded.Bookmark, "Nothing saved yet", "Save albums and playlists or follow artists — they appear here.") }
+            // 1.0.5: pairs chunked once per change; key = row position + first id (unique even if an id repeats).
+            itemsIndexed(savedPairs, key = { i, pair -> "saved:$i:" + pair.first().id }, contentType = { _, _ -> "saved-pair" }) { _, pair ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    pair.forEach { c -> Box(Modifier.weight(1f)) { CollectionCard(c, 160.dp) { nav.openCollection(c) } } }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+

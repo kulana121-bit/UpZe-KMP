@@ -1,0 +1,242 @@
+package com.ravi.musicspot.ui.settings
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.ravi.musicspot.Graph
+import com.ravi.musicspot.core.File
+import com.ravi.musicspot.core.PlatformActions
+import com.ravi.musicspot.core.PlatformIO
+import com.ravi.musicspot.core.currentTimeMillis
+import com.ravi.musicspot.model.SourceKind
+import com.ravi.musicspot.ui.Pills
+import com.ravi.musicspot.ui.components.formatBytes
+import com.ravi.musicspot.ui.theme.Ms
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+
+// ---- Storage -----------------------------------------------------------------------------------------------------
+
+private data class Sizes(val media: Long, val downloads: Long, val lyrics: Long, val images: Long, val free: Long, val total: Long)
+
+private fun dirSize(f: File?): Long {
+    if (f == null || !f.exists()) return 0L
+    val files = f.listFiles()
+    var sum = 0L
+    for (file in files) {
+        val children = file.listFiles()
+        if (children.isNotEmpty()) {
+            sum += dirSize(file)
+        } else {
+            sum += file.length
+        }
+    }
+    return sum
+}
+
+private fun deleteDir(f: File?): Boolean {
+    if (f == null || !f.exists()) return true
+    val files = f.listFiles()
+    for (file in files) {
+        deleteDir(file)
+    }
+    return f.delete()
+}
+
+@Composable
+fun StoragePage() {
+    val s by Graph.settings.state.collectAsState()
+    val dls by Graph.downloads.items.collectAsState()
+    val scope = rememberCoroutineScope()
+    var refresh by remember { mutableIntStateOf(0) }
+    var sizes by remember { mutableStateOf<Sizes?>(null) }
+    var confirm by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(refresh, dls.size) {
+        sizes = withContext(Dispatchers.Default) {
+            val mediaBytes = dirSize(File(PlatformIO.cacheDir(), "media_cache"))
+            val dlBytes = Graph.downloads.usedBytes()
+            val lyricBytes = Graph.lyricsCache.sizeBytes()
+            val imgBytes = dirSize(File(PlatformIO.cacheDir(), "image_cache"))
+            Sizes(mediaBytes, dlBytes, lyricBytes, imgBytes, 0L, 0L)
+        }
+    }
+
+    fun clear(what: String) = scope.launch {
+        withContext(Dispatchers.Default) {
+            when (what) {
+                "media" -> deleteDir(File(PlatformIO.cacheDir(), "media_cache"))
+                "downloads" -> Graph.downloads.deleteAll()
+                "lyrics" -> Graph.lyricsCache.clear()
+                "images" -> deleteDir(File(PlatformIO.cacheDir(), "image_cache"))
+            }
+        }
+        Pills.show("Cleared")
+        refresh++
+    }
+
+    SettingsScaffold("Storage") {
+        item(key = "storagepage-1", contentType = "static") {
+            Group("This device") {
+                val z = sizes
+                if (z == null) Row(Modifier.fillMaxWidth().padding(16.dp)) { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) }
+                else {
+                    Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                        val used = z.media + z.downloads + z.lyrics + z.images
+                        Text("UpZe uses ${formatBytes(used)}", style = MaterialTheme.typography.titleMedium)
+                        if (z.total > 0) {
+                            Text("${formatBytes(z.free)} free of ${formatBytes(z.total)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.size(8.dp))
+                            LinearProgressIndicator({ if (z.total > 0) (1f - z.free.toFloat() / z.total).coerceIn(0f, 1f) else 0f }, Modifier.fillMaxWidth())
+                        }
+                    }
+                    RowDivider()
+                    SizeRow("Downloads", "${dls.values.count { it.state == com.ravi.musicspot.data.DownloadEntry.State.DONE }} songs saved for offline", z.downloads, "Delete all") { confirm = "downloads" }
+                    RowDivider()
+                    SizeRow("Streaming cache", "Recently played audio, limit ${limitLabel(s.cacheLimitMb)}", z.media, "Clear") { confirm = "media" }
+                    RowDivider()
+                    SizeRow("Artwork cache", "Album art and avatars", z.images, "Clear") { clear("images") }
+                    RowDivider()
+                    SizeRow("Lyrics cache", "Saved lyrics lookups", z.lyrics, "Clear") { clear("lyrics") }
+                }
+            }
+        }
+        item(key = "storagepage-2", contentType = "static") {
+            Group("Streaming cache limit", footer = "A new limit applies the next time the app starts. Older audio is removed first when the cache is full.") {
+                ChoiceRow(null, listOf(256, 512, 1024, 2048, 4096), s.cacheLimitMb, ::limitLabel) { v -> Graph.settings.update { it.copy(cacheLimitMb = v) } }
+            }
+        }
+    }
+
+    com.ravi.musicspot.ui.motion.MotionAlertDialog(item = confirm, onDismissRequest = { confirm = null },
+        title = { what -> Text(if (what == "downloads") "Delete all downloads?" else "Clear the streaming cache?") },
+        text = { what -> Text(if (what == "downloads") "Downloaded songs are removed from this device and won't play offline until you download them again." else "Songs will stream again next time you play them.") },
+        confirmButton = { what -> TextButton(onClick = { clear(what); confirm = null }) { Text(if (what == "downloads") "Delete" else "Clear") } },
+        dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancel") } })
+}
+
+private fun limitLabel(mb: Int) = if (mb >= 1024) "${mb / 1024} GB" else "$mb MB"
+
+@Composable
+private fun SizeRow(title: String, subtitle: String, bytes: Long, action: String, onAction: () -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        Text(formatBytes(bytes), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        TextButton(onClick = onAction, enabled = bytes > 0) { Text(action) }
+    }
+}
+
+// ---- Diagnostics -------------------------------------------------------------------------------------------------
+
+private data class Probe(val running: Boolean = false, val ok: Boolean? = null, val ms: Long? = null, val detail: String? = null)
+
+@Composable
+fun DiagnosticsPage() {
+    val s by Graph.settings.state.collectAsState()
+    val online by Graph.online.collectAsState()
+    val scope = rememberCoroutineScope()
+    val results = remember { mutableStateMapOf<SourceKind, Probe>() }
+    val kinds = (s.sourcePriority + Graph.sources.sources.keys).distinct().filter { it in Graph.sources.sources }
+    var running by remember { mutableStateOf(false) }
+
+    suspend fun probe(k: SourceKind) {
+        val src = Graph.sources.source(k) ?: return
+        results[k] = Probe(running = true)
+        val t0 = currentTimeMillis()
+        results[k] = try {
+            val d = withTimeout(15_000) { withContext(Dispatchers.Default) { src.probe() } }
+            Probe(ok = true, ms = currentTimeMillis() - t0, detail = d)
+        } catch (e: CancellationException) {
+            if (e is kotlinx.coroutines.TimeoutCancellationException) Probe(ok = false, ms = 15_000, detail = "No answer within 15 s") else throw e
+        } catch (e: Exception) {
+            Probe(ok = false, ms = currentTimeMillis() - t0, detail = e.message ?: "Failed")
+        }
+    }
+    fun runAll() { running = true; scope.launch { coroutineScope { kinds.map { k -> async { probe(k) } }.awaitAll() }; running = false } }
+    LaunchedEffect(Unit) { runAll() }
+
+    SettingsScaffold("Diagnostics") {
+        item(key = "storagepage-3", contentType = "static") {
+            Group {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(if (online) "Online${if (Graph.metered) " · metered (mobile data)" else " · unmetered"}" else "Offline", style = MaterialTheme.typography.titleMedium)
+                    Text("YouTube Music: ${if (Graph.tube.signedIn) "signed in" else "guest"} · Quality now: ${s.effectiveQuality(Graph.metered).label}",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Each test makes a real request to the source (a small search or a server ping) and measures the round trip.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                        Button(onClick = { runAll() }, enabled = !running) { Text(if (running) "Testing…" else "Run all tests") }
+                        OutlinedButton(onClick = {
+                            val report = buildString {
+                                appendLine("UpZe ${com.ravi.musicspot.update.Updater.CURRENT_VERSION} diagnostics")
+                                appendLine("Network: ${if (online) "online" else "offline"}${if (Graph.metered) ", metered" else ""}")
+                                kinds.forEach { k -> val r = results[k]; appendLine("${k.label} [${if (k in s.enabledSources) "on" else "off"}]: ${when (r?.ok) { true -> "OK ${r.ms} ms"; false -> "FAIL ${r.ms} ms"; null -> "not run" }} ${r?.detail ?: ""}") }
+                            }
+                            PlatformActions.copyText(report, "Report copied")
+                        }, enabled = !running && results.isNotEmpty()) { Text("Copy report") }
+                    }
+                }
+            }
+        }
+        item(key = "storagepage-4", contentType = "static") {
+            Group("Sources") {
+                kinds.forEachIndexed { i, k ->
+                    if (i > 0) RowDivider()
+                    val r = results[k] ?: Probe()
+                    Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        val dot = when (r.ok) { true -> Ms.Success; false -> Ms.Error; null -> MaterialTheme.colorScheme.outline }
+                        androidx.compose.foundation.layout.Box(Modifier.size(10.dp).clip(CircleShape).background(dot))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(k.label + if (k !in s.enabledSources) " (off)" else "", style = MaterialTheme.typography.titleSmall)
+                            Text(if (r.running) "Testing…" else r.detail ?: "Not tested", style = MaterialTheme.typography.bodySmall,
+                                color = if (r.ok == false) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                        if (r.running) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        else r.ms?.let { Text("$it ms", style = MaterialTheme.typography.labelLarge, color = if (r.ok == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
+                        TextButton(onClick = { scope.launch { probe(k) } }, enabled = !r.running) { Text("Test") }
+                    }
+                }
+            }
+        }
+    }
+}
