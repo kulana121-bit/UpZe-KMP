@@ -14,6 +14,7 @@ import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.setActive
 import platform.AVFoundation.AVPlayer
+import platform.AVFoundation.volume
 import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVAudioMixInputParameters
 import platform.AVFoundation.AVMediaTypeAudio
@@ -106,7 +107,7 @@ class IosAudioPlayer : BaseAudioPlayer() {
                     val cmTime = CMTimeMake(value = positionMs, timescale = 1000)
                     p.seekToTime(cmTime)
                 }
-                applyVolume(playerItem, 0f)
+                p.volume = 0f
                 p.play()
                 rampVolume(1f)
                 _state.value = _state.value.copy(playing = true, buffering = false)
@@ -120,7 +121,7 @@ class IosAudioPlayer : BaseAudioPlayer() {
 
     override fun setVolume(volume: Float) {
         appliedVolume = volume
-        currentItem?.let { applyVolume(it, volume) }
+        player?.volume = volume
     }
 
     // AVPlayer.volume is not exposed in these Kotlin/Native bindings; per-item AVAudioMix
