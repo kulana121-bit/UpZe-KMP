@@ -14,6 +14,10 @@ import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.setActive
 import platform.AVFoundation.AVPlayer
+import platform.AVFoundation.AVAssetTrack
+import platform.AVFoundation.AVAudioMixInputParameters
+import platform.AVFoundation.AVMediaTypeAudio
+import platform.AVFoundation.AVMutableAudioMix
 import platform.AVFoundation.AVPlayerItem
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMake
@@ -32,6 +36,8 @@ import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
 @OptIn(ExperimentalForeignApi::class)
 class IosAudioPlayer : BaseAudioPlayer() {
     private var player: AVPlayer? = null
+    private var currentItem: AVPlayerItem? = null
+    private var appliedVolume: Float = 1f
     private var engineCore: EngineCore? = null
     private var currentSettings = EngineSettings()
 
@@ -88,6 +94,7 @@ class IosAudioPlayer : BaseAudioPlayer() {
 
                 val nsUrl = NSURL.URLWithString(url) ?: return@launch
                 val playerItem = AVPlayerItem(uRL = nsUrl)
+                currentItem = playerItem
                 engineCore = EngineCore(44100, 2, currentSettings)
                 EngineStatusCenter.publish(engineCore?.status ?: EngineStatus())
                 _state.value = _state.value.copy(dspStatus = engineCore?.status ?: EngineStatus())
@@ -99,7 +106,7 @@ class IosAudioPlayer : BaseAudioPlayer() {
                     val cmTime = CMTimeMake(value = positionMs, timescale = 1000)
                     p.seekToTime(cmTime)
                 }
-                p.setValue(0.0f, forKey = "volume")
+                applyVolume(playerItem, 0f)
                 p.play()
                 rampVolume(1f)
                 _state.value = _state.value.copy(playing = true, buffering = false)
@@ -112,7 +119,19 @@ class IosAudioPlayer : BaseAudioPlayer() {
     }
 
     override fun setVolume(volume: Float) {
-        player?.setValue(volume, forKey = "volume")
+        appliedVolume = volume
+        currentItem?.let { applyVolume(it, volume) }
+    }
+
+    // AVPlayer.volume is not exposed in these Kotlin/Native bindings; per-item AVAudioMix
+    // input parameters provide the same graded volume control (used by the fade ramps).
+    private fun applyVolume(item: AVPlayerItem, v: Float) {
+        val track = item.asset.tracksWithMediaType(AVMediaTypeAudio).firstOrNull() as? AVAssetTrack ?: return
+        val params = AVAudioMixInputParameters(audioTrack = track)
+        params.setVolume(v, CMTimeMake(value = 0, timescale = 1))
+        val mix = AVMutableAudioMix()
+        mix.inputParameters = listOf(params)
+        item.audioMix = mix
     }
 
     override fun onPause() {
