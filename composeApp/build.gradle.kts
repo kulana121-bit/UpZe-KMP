@@ -69,11 +69,11 @@ android {
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.ravi.musicspot"
+        applicationId = "com.ravi.musicspot.kmptest"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 32
-        versionName = "v1.02"
+        versionName = "v1.02-kmp-test"
     }
 
     packaging {

@@ -26,7 +26,7 @@
     </queries>
 
     <application
-        android:label="UpZe"
+        android:label="UpZe KMP Test"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@android:style/Theme.Material.NoActionBar"
