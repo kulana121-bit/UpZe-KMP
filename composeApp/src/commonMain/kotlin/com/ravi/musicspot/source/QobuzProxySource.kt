@@ -73,7 +73,7 @@ class QobuzProxySource(private val enabled: () -> Boolean) : MusicSource {
                 // Next proxy
             }
         }
-        emptyList()
+        return emptyList()
     }
 
     override suspend fun resolve(track: Track, quality: Quality, metered: Boolean): Resolved {

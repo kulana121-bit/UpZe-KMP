@@ -99,7 +99,7 @@ class IosAudioPlayer : BaseAudioPlayer() {
                     val cmTime = CMTimeMake(value = positionMs, timescale = 1000)
                     p.seekToTime(cmTime)
                 }
-                p.volume = 0f
+                p.setValue(0.0f, forKey = "volume")
                 p.play()
                 rampVolume(1f)
                 _state.value = _state.value.copy(playing = true, buffering = false)
@@ -112,7 +112,7 @@ class IosAudioPlayer : BaseAudioPlayer() {
     }
 
     override fun setVolume(volume: Float) {
-        player?.volume = volume
+        player?.setValue(volume, forKey = "volume")
     }
 
     override fun onPause() {

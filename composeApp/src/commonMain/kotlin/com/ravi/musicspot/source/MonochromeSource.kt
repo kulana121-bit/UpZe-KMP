@@ -80,7 +80,7 @@ class MonochromeSource(private val enabled: () -> Boolean) : MusicSource {
                 // Try next mirror
             }
         }
-        emptyList()
+        return emptyList()
     }
 
     override suspend fun resolve(track: Track, quality: Quality, metered: Boolean): Resolved {

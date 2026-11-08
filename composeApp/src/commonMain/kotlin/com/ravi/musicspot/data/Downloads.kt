@@ -1,6 +1,7 @@
 package com.ravi.musicspot.data
 
 import com.ravi.musicspot.Graph
+import com.ravi.musicspot.core.currentTimeMillis
 import com.ravi.musicspot.core.File
 import com.ravi.musicspot.core.Http
 import com.ravi.musicspot.core.IoScope
@@ -31,6 +32,7 @@ data class DownloadEntry(
     val path: String? = null,
     val error: String? = null,
     val info: StreamInfo? = null,
+    val atMs: Long = currentTimeMillis(),
 ) {
     enum class State { QUEUED, RUNNING, DONE, FAILED }
     val progress: Float get() = if (total > 0) (bytes.toFloat() / total).coerceIn(0f, 1f) else 0f

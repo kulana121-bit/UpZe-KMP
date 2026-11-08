@@ -11,24 +11,26 @@ actual object Crypto {
         val data = NSData.create(base64EncodedString = base64Ciphertext.trim(), options = 0u) ?: return ""
         val keyData = (key as NSString).dataUsingEncoding(NSUTF8StringEncoding) ?: return ""
         val buffer = ByteArray(data.length.toInt() + kCCBlockSizeDES.toInt())
-        val movedBytes = alloc<ULongVar>()
+        val moved = ULongArray(1)
 
         buffer.usePinned { pinned ->
-            CCCrypt(
-                kCCDecrypt,
-                kCCAlgorithmDES,
-                kCCOptionPKCS7Padding or kCCOptionECBMode,
-                keyData.bytes,
-                kCCKeySizeDES.toULong(),
-                null,
-                data.bytes,
-                data.length,
-                pinned.addressOf(0),
-                buffer.size.toULong(),
-                movedBytes.ptr
-            )
+            moved.usePinned { movedPin ->
+                CCCrypt(
+                    kCCDecrypt,
+                    kCCAlgorithmDES,
+                    kCCOptionPKCS7Padding or kCCOptionECBMode,
+                    keyData.bytes,
+                    kCCKeySizeDES.toULong(),
+                    null,
+                    data.bytes,
+                    data.length,
+                    pinned.addressOf(0),
+                    buffer.size.toULong(),
+                    movedPin.addressOf(0)
+                )
+            }
         }
-        val outLen = movedBytes.value.toInt().coerceIn(0, buffer.size)
+        val outLen = moved[0].toInt().coerceIn(0, buffer.size)
         if (outLen == 0) return ""
         return runCatching { buffer.copyOf(outLen).decodeToString() }.getOrDefault("")
     }
