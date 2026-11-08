@@ -2,9 +2,11 @@ package com.ravi.musicspot.ui.player
 
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.clip
 import androidx.compose.animation.togetherWith
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.VisibilityThreshold
 import com.ravi.musicspot.ui.glass.glass
 import androidx.compose.animation.animateColorAsState
@@ -78,7 +80,7 @@ import com.ravi.musicspot.lyrics.instrumentalGaps
 import com.ravi.musicspot.lyrics.introGap
 import com.ravi.musicspot.model.SourceKind
 import com.ravi.musicspot.model.Track
-import com.ravi.musicspot.playback.EngineAudioProcessor
+import com.ravi.musicspot.playback.EngineStatusCenter
 import com.ravi.musicspot.playback.Playback
 import com.ravi.musicspot.ui.Menus
 import com.ravi.musicspot.ui.Route
@@ -331,7 +333,7 @@ private fun GapDots(gap: com.ravi.musicspot.lyrics.LyricGap, pos: androidx.compo
                 scaleX = s; scaleY = s
                 phase?.let { ph ->
                     val t = ((ph.value - k * 0.14f) % 1f + 1f) % 1f
-                    translationY = if (t < 0.35f) -kotlin.math.sin(t / 0.35f * Math.PI).toFloat() * 7.dp.toPx() else 0f
+                    translationY = if (t < 0.35f) -kotlin.math.sin(t / 0.35f * kotlin.math.PI).toFloat() * 7.dp.toPx() else 0f
                 }
             }.background(dot, androidx.compose.foundation.shape.CircleShape))
         }
@@ -391,7 +393,7 @@ fun RelatedPane(onNavigate: (Route) -> Unit) {
 @Composable
 fun CreditsPane(t: Track) {
     val stream by Playback.stream.collectAsState()
-    val engine by EngineAudioProcessor.status.collectAsState()
+    val engine by EngineStatusCenter.status.collectAsState()
     val roles by produceState<List<Pair<String, String>>>(emptyList(), t.id) {
         value = runCatching {
             when (t.source) {

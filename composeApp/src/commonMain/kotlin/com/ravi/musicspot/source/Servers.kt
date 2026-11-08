@@ -85,8 +85,22 @@ class JellyfinSource(private val account: () -> Account?, private val enabled: (
     private fun authHeader(acct: Account): String =
         "MediaBrowser Client=\"UpZe\", Device=\"KMP\", DeviceId=\"upze-app\", Version=\"2.0\", Token=\"${acct.secret}\""
 
+    private fun baseOf(a: Account) = serverBase(a.extra?.substringBefore('|') ?: "")
+
+    /** Logs in with username/password and returns (accessToken, userId). */
+    suspend fun login(server: String, user: String, password: String): Pair<String, String> {
+        val auth = "MediaBrowser Client=\"UpZe\", Device=\"KMP\", DeviceId=\"upze-app\", Version=\"2.0\""
+        val body = buildJsonObject { put("Username", user); put("Pw", password) }.toString()
+        val resp = Http.postJson("${serverBase(server)}/Users/AuthenticateByName", body, mapOf("X-Emby-Authorization" to auth, "Authorization" to auth))
+        val o = runCatching { Http.json.parseToJsonElement(resp) }.getOrNull() as? JsonObject
+            ?: throw SourceUnavailableException("Jellyfin: unexpected reply")
+        val userObj = o["User"] as? JsonObject ?: throw SourceUnavailableException("Jellyfin: unexpected reply")
+        return (o.s("AccessToken") ?: throw SourceUnavailableException("Jellyfin: unexpected reply")) to
+            (userObj.s("Id") ?: throw SourceUnavailableException("Jellyfin: unexpected reply"))
+    }
+
     private suspend fun get(path: String, acct: Account = account() ?: throw SourceUnavailableException("No Jellyfin server")): JsonObject {
-        val url = "${serverBase(acct.extra ?: "")}/$path"
+        val url = "${baseOf(acct)}/$path"
         val body = Http.getString(url, mapOf("Authorization" to authHeader(acct)))
         return Http.json.parseToJsonElement(body) as JsonObject
     }
@@ -99,7 +113,7 @@ class JellyfinSource(private val account: () -> Account?, private val enabled: (
             val id = item.s("Id") ?: return@mapNotNull null
             val ticks = item.l("RunTimeTicks") ?: 0L
             Track("jf:$id", item.s("Name").orEmpty(), item.s("AlbumArtist").orEmpty(), item.s("Album"), ticks / 10_000,
-                "${serverBase(a.extra ?: "")}/Items/$id/Images/Primary?fillWidth=600&fillHeight=600")
+                "${baseOf(a)}/Items/$id/Images/Primary?fillWidth=600&fillHeight=600")
         } }
     }
 

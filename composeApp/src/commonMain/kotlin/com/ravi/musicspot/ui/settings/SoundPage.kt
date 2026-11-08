@@ -54,7 +54,7 @@ import com.ravi.musicspot.dsp.EnhanceLevel
 import com.ravi.musicspot.dsp.EqConfig
 import com.ravi.musicspot.dsp.FilterType
 import com.ravi.musicspot.dsp.responseDb
-import com.ravi.musicspot.playback.EngineAudioProcessor
+import com.ravi.musicspot.playback.EngineStatusCenter
 import com.ravi.musicspot.ui.Pills
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -72,7 +72,7 @@ private fun supportedRates(): List<Int> = listOf(48_000, 96_000, 192_000)
 @Composable
 fun SoundPage() {
     val s by Graph.settings.state.collectAsState()
-    val status by EngineAudioProcessor.status.collectAsState()
+    val status by EngineStatusCenter.status.collectAsState()
         val rates = remember { supportedRates() }
     val eq = s.eq
     val pure = s.pureHiRes || s.bitPerfectUsb
@@ -238,7 +238,7 @@ private fun AutoEqSearch(onDone: () -> Unit) {
         if (query.isBlank()) return
         busy = true; error = null
         scope.launch {
-            try { results = AutoEq.search(com.ravi.musicspot.core.PlatformIO.cacheDir, query) } catch (e: CancellationException) { throw e } catch (e: Exception) { error = "Couldn't reach AutoEq: ${e.message}" }
+            try { results = AutoEq.search(com.ravi.musicspot.core.File(com.ravi.musicspot.core.PlatformIO.cacheDir()), query) } catch (e: CancellationException) { throw e } catch (e: Exception) { error = "Couldn't reach AutoEq: ${e.message}" }
             busy = false
         }
     }

@@ -5,6 +5,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -81,6 +82,7 @@ import com.ravi.musicspot.model.Collection
 import com.ravi.musicspot.model.Track
 import com.ravi.musicspot.ui.Pills
 import com.ravi.musicspot.ui.glass.glass
+import com.ravi.musicspot.ui.motion.pressable
 import com.ravi.musicspot.ui.motion.pressScale
 import com.ravi.musicspot.ui.motion.reducedMotion
 import com.ravi.musicspot.ui.motion.rememberHaptics
@@ -173,6 +175,7 @@ fun formatBytes(b: Long): String {
     return "$whole.$frac GB"
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TrackRow(
     t: Track,

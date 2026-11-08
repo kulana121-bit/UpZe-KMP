@@ -15,8 +15,8 @@ import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.setActive
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
-import platform.AVFoundation.CMTimeGetSeconds
-import platform.AVFoundation.CMTimeMake
+import platform.CoreMedia.CMTimeGetSeconds
+import platform.CoreMedia.CMTimeMake
 import platform.AVFoundation.currentTime
 import platform.AVFoundation.play
 import platform.AVFoundation.pause
@@ -88,7 +88,8 @@ class IosAudioPlayer : BaseAudioPlayer() {
 
                 val nsUrl = NSURL.URLWithString(url) ?: return@launch
                 val playerItem = AVPlayerItem(uRL = nsUrl)
-                engineCore = EngineCore(inRate = 44100, channels = 2, settings = currentSettings)
+                engineCore = EngineCore(44100, 2, currentSettings)
+                EngineStatusCenter.publish(engineCore?.status ?: EngineStatus())
                 _state.value = _state.value.copy(dspStatus = engineCore?.status ?: EngineStatus())
 
                 val p = AVPlayer(playerItem = playerItem)
@@ -144,7 +145,8 @@ class IosAudioPlayer : BaseAudioPlayer() {
 
     override fun updateDspSettings(settings: EngineSettings) {
         currentSettings = settings
-        engineCore?.apply(settings)
+        engineCore?.update(settings)
+        EngineStatusCenter.publish(engineCore?.status ?: EngineStatus())
     }
 
     override fun release() {

@@ -242,11 +242,14 @@ fun MotionAlertDialog(
     dismissButton: (@Composable () -> Unit)? = null,
     title: (@Composable () -> Unit)? = null,
     text: (@Composable () -> Unit)? = null,
-) = MotionAlertDialog(
-    item = if (visible) Unit else null, onDismissRequest = onDismissRequest,
-    confirmButton = { confirmButton() }, dismissButton = dismissButton?.let { d -> { _: Unit -> d() } },
-    title = title?.let { c -> { _: Unit -> c() } }, text = text?.let { c -> { _: Unit -> c() } },
-)
+) = MotionDialog(if (visible) Unit else null, onDismissRequest) {
+    AlertDialogCard(
+        confirmButton = confirmButton,
+        dismissButton = dismissButton,
+        title = title,
+        text = text,
+    )
+}
 
 internal fun menuPlacement(anchor: IntRect, window: IntSize, popup: IntSize, ltr: Boolean, margin: Int): Pair<IntOffset, TransformOrigin> {
     val startX = if (ltr) anchor.left else anchor.right - popup.width

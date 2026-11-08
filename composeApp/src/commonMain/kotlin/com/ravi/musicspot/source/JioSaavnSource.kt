@@ -80,6 +80,38 @@ class JioSaavnSource(private val enabled: () -> Boolean) : MusicSource {
         return pids.mapNotNull { pid -> (details[pid] as? JsonObject)?.let(::toTrack) }
     }
 
+
+    /**
+     * Autoplay fallback: JioSaavn's song recommendations (reco.getreco) for [seed]. A non-JioSaavn seed is
+     * first matched on JioSaavn by title + artist.
+     */
+    suspend fun recommendationsFor(seed: Track): List<Track> {
+        val pid = if (seed.source == SourceKind.JIOSAAVN) seed.nativeId else {
+            val q = TrackMatcher.searchQueries(seed).firstOrNull() ?: "${seed.title} ${seed.artist}"
+            TrackMatcher.best(seed, search(q, 10), TrackMatcher.LENIENT_THRESHOLD, lenient = true)?.nativeId ?: return emptyList()
+        }
+        val root = call("reco.getreco", "pid" to pid, log = true)
+        val arr = (root as? JsonObject)?.get(pid) as? JsonArray ?: root as? JsonArray
+        return arr.orEmpty().mapNotNull { (it as? JsonObject)?.let(::toTrack) }
+    }
+
+    /** Real credits from JioSaavn's artistMap: singers, music director, lyricist, label, year. */
+    suspend fun credits(track: Track): List<Pair<String, String>> {
+        val id = track.nativeId
+        val details = call("song.getDetails", "pids" to id) as? JsonObject ?: return emptyList()
+        val song = (details[id] as? JsonObject) ?: return emptyList()
+        val info = song.obj("more_info") ?: return emptyList()
+        val out = mutableListOf<Pair<String, String>>()
+        val artists = (info.obj("artistMap")?.get("artists") as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
+        artists.groupBy { it.str("role").orEmpty() }.forEach { (role, list) ->
+            if (role.isNotBlank()) out += role.replaceFirstChar { it.uppercase() } to list.joinToString { unescapeHtml(it.str("name")) }
+        }
+        info.str("label")?.takeIf { it.isNotBlank() }?.let { out += "Label" to unescapeHtml(it) }
+        song.str("year")?.takeIf { it.isNotBlank() }?.let { out += "Year" to it }
+        info.str("copyright_text")?.takeIf { it.isNotBlank() }?.let { out += "Copyright" to unescapeHtml(it) }
+        return out
+    }
+
     override suspend fun resolve(track: Track, quality: Quality, metered: Boolean): Resolved {
         val id = track.nativeId
         val details = call("song.getDetails", "pids" to id) as? JsonObject

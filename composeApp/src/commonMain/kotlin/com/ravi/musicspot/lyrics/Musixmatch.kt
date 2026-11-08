@@ -3,7 +3,6 @@ package com.ravi.musicspot.lyrics
 import com.ravi.musicspot.core.Http
 import com.ravi.musicspot.core.PlatformLock
 import com.ravi.musicspot.core.currentTimeMillis
-import com.ravi.musicspot.core.withLock
 import io.ktor.http.encodeURLParameter
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray

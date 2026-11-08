@@ -4,7 +4,6 @@ import com.ravi.musicspot.Graph
 import com.ravi.musicspot.core.Http
 import com.ravi.musicspot.core.currentTimeMillis
 import com.ravi.musicspot.logic.ListenStats
-import com.ravi.musicspot.logic.epochDayToCivil
 import kotlinx.serialization.Serializable
 
 /**
@@ -36,7 +35,7 @@ object Backup {
 
     fun fileName(nowMs: Long = currentTimeMillis()): String {
         val day = ListenStats.epochDay(nowMs)
-        val civil = epochDayToCivil(day)
+        val civil = ListenStats.epochDayToCivil(day)
         val y = civil.year.toString().padStart(4, '0')
         val m = civil.month.toString().padStart(2, '0')
         val d = civil.dayOfMonth.toString().padStart(2, '0')

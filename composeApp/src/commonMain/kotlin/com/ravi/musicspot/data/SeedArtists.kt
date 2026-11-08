@@ -1,5 +1,7 @@
 package com.ravi.musicspot.data
 
+import kotlin.concurrent.Volatile
+
 import com.ravi.musicspot.Graph
 import com.ravi.musicspot.core.IoScope
 import com.ravi.musicspot.core.JsonFile

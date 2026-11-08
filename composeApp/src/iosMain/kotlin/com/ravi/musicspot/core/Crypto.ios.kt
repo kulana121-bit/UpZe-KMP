@@ -11,7 +11,7 @@ actual object Crypto {
         val data = NSData.create(base64EncodedString = base64Ciphertext.trim(), options = 0u) ?: return ""
         val keyData = (key as NSString).dataUsingEncoding(NSUTF8StringEncoding) ?: return ""
         val buffer = ByteArray(data.length.toInt() + kCCBlockSizeDES.toInt())
-        val movedBytes = alloc<NSUIntegerVar>()
+        val movedBytes = alloc<ULongVar>()
 
         buffer.usePinned { pinned ->
             CCCrypt(
@@ -28,8 +28,9 @@ actual object Crypto {
                 movedBytes.ptr
             )
         }
-        val decryptedData = NSData.create(bytes = buffer.refTo(0), length = movedBytes.value)
-        return NSString.create(data = decryptedData, encoding = NSUTF8StringEncoding) as String? ?: ""
+        val outLen = movedBytes.value.toInt().coerceIn(0, buffer.size)
+        if (outLen == 0) return ""
+        return runCatching { buffer.copyOf(outLen).decodeToString() }.getOrDefault("")
     }
 
     actual fun sha1(input: String): String {

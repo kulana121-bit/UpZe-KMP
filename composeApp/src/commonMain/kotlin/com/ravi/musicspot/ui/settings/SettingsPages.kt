@@ -13,10 +13,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.AutoAwesome // v2.0.15
+import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Construction
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.SystemUpdate
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -69,6 +70,7 @@ fun SettingsPageScreen(page: String) {
         "diagnostics" -> DiagnosticsPage()
         "about" -> AboutPage()
         "playbacklog" -> PlaybackLogPage()
+        "crashreport" -> CrashReportPage()
         else -> SettingsScaffold("Settings") { item { EmptyState(Icons.Rounded.Construction, "Unknown page", "This settings page doesn't exist.") } }
     }
 }
@@ -348,7 +350,7 @@ fun AboutPage() {
             Group("Updates") {
                 NavRow(androidx.compose.material.icons.Icons.Rounded.SystemUpdate, "Check for updates", if (checking) "Checking…" else "Looks for a newer UpZe release on GitHub") {
                     if (!checking) scope.launch {
-                        when (com.ravi.musicspot.update.Updater.check(ctx, manual = true)) {
+                        when (com.ravi.musicspot.update.Updater.check(manual = true)) {
                             com.ravi.musicspot.update.Updater.Result.UPDATE -> {}
                             com.ravi.musicspot.update.Updater.Result.UP_TO_DATE -> com.ravi.musicspot.ui.Pills.show("UpZe is up to date")
                             com.ravi.musicspot.update.Updater.Result.FAILED -> com.ravi.musicspot.ui.Pills.show("Couldn't check for updates")
@@ -364,14 +366,14 @@ fun AboutPage() {
         item(key = "settingspages-23", contentType = "static") {
             // 1.0.0: developer and source code.
             Group("Developer") {
-                NavRow(androidx.compose.material.icons.Icons.Rounded.Person, "Developer", "Ravi") { com.ravi.musicspot.core.Links.open(ctx, com.ravi.musicspot.core.Links.GITHUB) }
+                NavRow(androidx.compose.material.icons.Icons.Rounded.Person, "Developer", "Ravi") { com.ravi.musicspot.core.Links.open(com.ravi.musicspot.core.Links.GITHUB) }
                 RowDivider()
-                NavRow(androidx.compose.ui.graphics.vector.ImageVector.vectorResource(com.ravi.musicspot.R.drawable.ic_brand_github), "GitHub", "kulana121-bit/UpZe-music · source code, releases and issues") {
-                    com.ravi.musicspot.core.Links.open(ctx, com.ravi.musicspot.core.Links.GITHUB)
+                NavRow(Icons.Rounded.Code, "GitHub", "kulana121-bit/UpZe-music · source code, releases and issues") {
+                    com.ravi.musicspot.core.Links.open(com.ravi.musicspot.core.Links.GITHUB)
                 }
                 RowDivider()
-                NavRow(androidx.compose.ui.graphics.vector.ImageVector.vectorResource(com.ravi.musicspot.R.drawable.ic_brand_instagram), "Instagram", "@jus7_rv") {
-                    com.ravi.musicspot.core.Links.open(ctx, com.ravi.musicspot.core.Links.INSTAGRAM)
+                NavRow(Icons.Rounded.PhotoCamera, "Instagram", "@jus7_rv") {
+                    com.ravi.musicspot.core.Links.open(com.ravi.musicspot.core.Links.INSTAGRAM)
                 }
             }
         }
@@ -383,7 +385,7 @@ fun AboutPage() {
                 }
                 RowDivider()
                 NavRow(null, "Last crash report", "Shows the saved error report so you can copy or share it with the developer") {
-                    com.ravi.musicspot.CrashActivity.showPrevious(ctx)
+                    nav.push(Route.SettingsPage("crashreport"))
                 }
             }
         }
@@ -409,6 +411,29 @@ fun PlaybackLogPage() {
         item(key = "settingspages-28", contentType = "static") {
             Group {
                 if (text.isBlank()) Text("Nothing logged yet. Play a song first.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else androidx.compose.foundation.text.selection.SelectionContainer {
+                    Text(text, Modifier.fillMaxWidth().padding(12.dp), style = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace))
+                }
+            }
+        }
+    }
+}
+
+/** Settings > About > Last crash report: the saved crash trace, with copy/share. */
+@Composable
+fun CrashReportPage() {
+    val text = remember { com.ravi.musicspot.core.CrashGuard.previousReport() }
+    var copied by remember { mutableStateOf(false) }
+    SettingsScaffold("Last crash report") {
+        item(key = "settingspages-crash-1", contentType = "static") {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(onClick = { if (text != null) { PlatformActions.copyText(text); copied = true } }, enabled = text != null) { Text(if (copied) "Copied" else "Copy") }
+                FilledTonalButton(onClick = { if (text != null) PlatformActions.shareText(text, "UpZe crash report") }, enabled = text != null) { Text("Share") }
+            }
+        }
+        item(key = "settingspages-crash-2", contentType = "static") {
+            Group {
+                if (text == null) Text("No crash report saved.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 else androidx.compose.foundation.text.selection.SelectionContainer {
                     Text(text, Modifier.fillMaxWidth().padding(12.dp), style = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace))
                 }

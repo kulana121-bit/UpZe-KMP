@@ -1,5 +1,7 @@
 package com.ravi.musicspot
 
+import kotlin.concurrent.Volatile
+
 import com.ravi.musicspot.account.Account
 import com.ravi.musicspot.account.AccountStore
 import com.ravi.musicspot.account.KeyValue
@@ -27,7 +29,9 @@ import com.ravi.musicspot.yt.YtStreamResolver
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -194,6 +198,31 @@ object Graph {
 
     suspend fun saveOfflineLyrics(t: Track, lyrics: Lyrics? = null) {
         val found = lyrics ?: lyricsFor(t, force = false) ?: return
-        offlineLyrics.put(t.id, found, emptyList())
+        val roman = (found as? Lyrics.Synced)?.let { s ->
+            withContext(Dispatchers.Default) { if (Romanizer.available) Romanizer.lines(s.lines.map { it.text }) else emptyList() }
+        } ?: emptyList()
+        offlineLyrics.put(t.id, found, roman)
+    }
+
+    private val romanLock = com.ravi.musicspot.core.PlatformLock()
+    private val romanCache = LinkedHashMap<String, List<String?>>()
+
+    /**
+     * Romanized lines for [l] (null where a line needs none), computed on Dispatchers.Default (transliteration
+     * is CPU work). A downloaded song's saved romanization is reused; results are kept in a small cache per song.
+     */
+    suspend fun romanizedLines(t: Track, l: Lyrics.Synced): List<String?> {
+        val k = t.id + "#" + l.lines.size + "#" + l.source
+        romanLock.withLock { romanCache[k] }?.let { return it }
+        val saved = offlineLyrics.get(t.id)
+            ?.takeIf { (it.lyrics as? Lyrics.Synced)?.lines?.size == l.lines.size && it.roman.size == l.lines.size }?.roman
+        val out = saved ?: withContext(Dispatchers.Default) {
+            if (Romanizer.available) Romanizer.lines(l.lines.map { it.text }) else l.lines.map { null }
+        }
+        romanLock.withLock {
+            romanCache[k] = out
+            while (romanCache.size > 12) romanCache.remove(romanCache.keys.first())
+        }
+        return out
     }
 }

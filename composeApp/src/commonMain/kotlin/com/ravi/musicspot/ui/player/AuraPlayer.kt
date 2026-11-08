@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Bedtime
@@ -93,7 +94,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ravi.musicspot.Graph
-import com.ravi.musicspot.playback.EngineAudioProcessor
+import com.ravi.musicspot.playback.EngineStatusCenter
 import com.ravi.musicspot.playback.Playback
 import com.ravi.musicspot.ui.Menus
 import com.ravi.musicspot.ui.components.Artwork
@@ -140,7 +141,6 @@ fun AuraPlayerScreen(
     var lastFull by rememberSaveable { mutableStateOf(Pane.QUEUE) }
     androidx.compose.runtime.LaunchedEffect(pane) { pane?.let { if (it.isFull()) lastFull = it } }
     var sleepSheet by remember { mutableStateOf(false) }
-    var soundSheet by remember { mutableStateOf(false) }
     val landscape = false
     val still = reducedMotion()
     val c = MaterialTheme.colorScheme
@@ -171,7 +171,7 @@ fun AuraPlayerScreen(
                         Spacer(Modifier.width(20.dp))
                         AnimatedContent(pane.inPlayer(), transitionSpec = { MotionSpec.fadeThrough(still) }, label = "auraLand", modifier = Modifier.weight(1.2f).fillMaxHeight()) { p ->
                             if (p == null) Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-                                AuraDeck(onOpenSleep = { sleepSheet = true }, onOpenEq = { soundSheet = true }, onPane = { pane = it }, openPane = pane)
+                                AuraDeck(onOpenSleep = { sleepSheet = true }, onOpenEq = onOpenEq, onPane = { pane = it }, openPane = pane)
                             } else AuraPaneCard(p, t, onCollapse, onNavigate)
                         }
                     }
@@ -189,7 +189,7 @@ fun AuraPlayerScreen(
                                 Modifier.weight(1f).fillMaxWidth().padding(horizontal = 28.dp, vertical = 6.dp)
                                     .graphicsLayer { alpha = coverA; scaleX = 0.82f + 0.18f * coverA; scaleY = 0.82f + 0.18f * coverA },
                                 reflection = true)
-                            AuraDeck(onOpenSleep = { sleepSheet = true }, onOpenEq = { soundSheet = true }, onPane = { pane = it }, openPane = null,
+                            AuraDeck(onOpenSleep = { sleepSheet = true }, onOpenEq = onOpenEq, onPane = { pane = it }, openPane = null,
                                 modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 8.dp))
                         } else Column(Modifier.fillMaxSize()) {
                             AuraMiniHeader(onClose = { pane = null })
@@ -204,7 +204,6 @@ fun AuraPlayerScreen(
     // 1.0.1: Queue / Lyrics open full screen over the player (pager + tabs, swipe down or Back to close).
     FullScreenPane(pane, onSelect = { pane = it }, onClose = { pane = null }, reveal = reveal, onNavigate = { pane = null; onCollapse(); onNavigate(it) })
     SleepSheet(sleepSheet) { sleepSheet = false }
-    com.ravi.musicspot.ui.settings.SoundSheet(soundSheet) { soundSheet = false }
 }
 
 /** The artwork's palette as three soft orbs that drift very slowly (40 s loop) over a blurred artwork wash. */
@@ -239,7 +238,7 @@ private fun AuraBackground(url: String?) {
         val fade = Brush.verticalGradient(listOf(Color.Transparent, bgColor.copy(alpha = 0.55f)), startY = h * 0.5f, endY = h)
         onDrawBehind {
             val phase = if (drifting) auraLoop.value else 0.25f
-            val tau = (Math.PI * 2).toFloat()
+            val tau = (kotlin.math.PI * 2).toFloat()
             val t = phase * tau
             translate(w * (0.30f + 0.18f * kotlin.math.cos(t)), h * (0.25f + 0.10f * kotlin.math.sin(t))) { drawCircle(orb1, r1, Offset.Zero) }
             translate(w * (0.75f + 0.15f * kotlin.math.sin(t * 1f + 1.7f)), h * (0.55f + 0.12f * kotlin.math.cos(t + 0.6f))) { drawCircle(orb2, r2, Offset.Zero) }
@@ -363,7 +362,7 @@ private fun AuraDeck(onOpenSleep: () -> Unit, onOpenEq: () -> Unit, onPane: (Pan
     val st by Graph.player.state.collectAsState()
     // v2.0.14b: position is collected inside AuraSeekBar so the deck doesn't recompose 4x/sec.
     val lib by Graph.library.data.collectAsState()
-    val engine by EngineAudioProcessor.status.collectAsState()
+    val engine by EngineStatusCenter.status.collectAsState()
     val err by Playback.error.collectAsState()
     val sleepTick by Playback.sleepTick.collectAsState()
     val t = st.current ?: return

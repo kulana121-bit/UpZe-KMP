@@ -83,7 +83,6 @@ import com.ravi.musicspot.model.Collection
 import com.ravi.musicspot.model.Shelf
 import com.ravi.musicspot.model.SourceKind
 import com.ravi.musicspot.model.Track
-import com.ravi.musicspot.ui.LocalNav
 import com.ravi.musicspot.ui.Menus
 import com.ravi.musicspot.ui.Route
 import com.ravi.musicspot.ui.Tab

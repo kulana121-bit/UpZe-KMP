@@ -40,7 +40,7 @@ object PlayStatsOps {
         val day = ListenStats.epochDay(nowMs, tzOffsetMs)
         val today = d.days[day].orEmpty()
         var days = d.days + (day to (today + (t.id to (today[t.id] ?: 0) + 1)))
-        if (days.size > MAX_DAYS) days = days.toSortedMap().entries.toList().takeLast(MAX_DAYS).associate { it.key to it.value }
+        if (days.size > MAX_DAYS) days = days.entries.sortedBy { it.key }.takeLast(MAX_DAYS).associate { it.key to it.value }
         val keep = days.values.flatMapTo(HashSet()) { it.keys }
         val part = TimeOfDay.partAt(nowMs, tzOffsetMs)
         var dayparts = d.dayparts + (t.id to TimeOfDay.increment(d.dayparts[t.id], part))

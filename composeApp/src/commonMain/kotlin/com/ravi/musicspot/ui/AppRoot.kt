@@ -119,14 +119,15 @@ fun AppRoot(openPlayer: Boolean, onOpenPlayerConsumed: () -> Unit) {
         fun expand() = scope.launch { if (still) sheet.progress.snapTo(1f) else sheet.progress.animateTo(1f, PageMotion.playerSpring) }
         fun collapse() = scope.launch { if (still) sheet.progress.snapTo(0f) else sheet.progress.animateTo(0f, PageMotion.playerSpring) }
 
-        LaunchedEffect(Unit) { Graph.player.connect() }
         LaunchedEffect(Unit) { com.ravi.musicspot.update.Updater.checkOnStart() }
         // v2.0.14: latest callback without restarting the effect.
         val openConsumed by androidx.compose.runtime.rememberUpdatedState(onOpenPlayerConsumed)
         LaunchedEffect(openPlayer, hasMini) { if (openPlayer && hasMini) { expand(); openConsumed() } }
         LaunchedEffect(hasMini) { if (!hasMini) sheet.progress.snapTo(0f) }
 
-        BackHandler(enabled = nav.canGoBack) {
+        var backProgress by remember { mutableStateOf(0f) }
+        PredictiveBackHandler(enabled = nav.canGoBack, onProgress = { if (!still) backProgress = it }) {
+            backProgress = 0f
             nav.back()
         }
 

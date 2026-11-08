@@ -31,7 +31,6 @@ import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.rememberHazeState
 
 /** The content layer floating glass samples. */
 val LocalHazeState = staticCompositionLocalOf<HazeState?> { null }
@@ -165,7 +164,7 @@ fun GlassLayer(
     overlay: @Composable BoxScope.() -> Unit,
     content: @Composable BoxScope.() -> Unit
 ) {
-    val haze = rememberHazeState()
+    val haze = remember { HazeState() }
     val s by Graph.settings.state.collectAsState()
     val sampled = s.glass != GlassStyle.SOLID && s.glass != GlassStyle.WATER && s.blurIntensity > 0.02f
     Box(modifier) {

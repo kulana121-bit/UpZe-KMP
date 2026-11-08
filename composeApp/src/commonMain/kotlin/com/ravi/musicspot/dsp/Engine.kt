@@ -1,5 +1,7 @@
 package com.ravi.musicspot.dsp
 
+import kotlin.concurrent.Volatile
+
 import kotlin.concurrent.AtomicReference
 import kotlin.math.max
 
@@ -95,7 +97,7 @@ class EngineCore(val inRate: Int, val channels: Int, initial: EngineSettings) {
         val prev = lastBuilt
         val c = if (prev != null && prev.config == s.eq) prev else EqChain(s.eq, fsIn, channels)
         lastBuilt = c
-        pending.set(Prepared(s, c, s.eq.isNeutral, makeBwe(s), makeShaper(s)))
+        pending.value = Prepared(s, c, s.eq.isNeutral, makeBwe(s), makeShaper(s))
     }
 
     val status: EngineStatus get() = EngineStatus(

@@ -52,6 +52,8 @@ class Innertube(
         params?.let { put("params", it) }
     }
 
+    suspend fun accountMenu(): JsonObject = postMusic("account/account_menu") {}
+
     suspend fun browseContinuation(token: String): JsonObject =
         postMusic("browse", mapOf("ctoken" to token, "continuation" to token, "type" to "next")) {
             put("continuation", token)

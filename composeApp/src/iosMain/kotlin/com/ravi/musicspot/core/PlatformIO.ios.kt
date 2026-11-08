@@ -1,5 +1,6 @@
 package com.ravi.musicspot.core
 
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import platform.Foundation.NSCachesDirectory
@@ -10,6 +11,7 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSString
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSStringEncoding
+import platform.Foundation.timeIntervalSince1970
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.NSUserDomainMask
 import platform.Foundation.closeFile
@@ -38,7 +40,7 @@ actual object PlatformIO {
     }
 
     actual fun writeTextAtomic(path: String, text: String) {
-        val nsStr = NSString.stringWithCString(text)
+        val nsStr = text as NSString
         nsStr.writeToFile(path, true, NSUTF8StringEncoding, null)
     }
 

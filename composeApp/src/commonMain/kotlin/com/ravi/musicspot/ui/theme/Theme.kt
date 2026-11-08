@@ -45,6 +45,7 @@ object Ms {
     val Warning = Color(0xFFE8C88A)
     val Success = Color(0xFF9CD5AE)
 
+    val r4 = RoundedCornerShape(4.dp)
     val r8 = RoundedCornerShape(8.dp)
     val r12 = RoundedCornerShape(12.dp)
     val r16 = RoundedCornerShape(16.dp)

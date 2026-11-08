@@ -9,6 +9,7 @@ import androidx.media3.common.audio.BaseAudioProcessor
 import com.ravi.musicspot.dsp.EngineCore
 import com.ravi.musicspot.dsp.EngineSettings
 import com.ravi.musicspot.dsp.EngineStatus
+import com.ravi.musicspot.playback.EngineStatusCenter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.nio.ByteBuffer
@@ -45,7 +46,7 @@ class EngineAudioProcessor(private val settings: () -> EngineSettings) : BaseAud
     }
 
     override fun onFlush() { pendingCore?.let { core = it; pendingCore = null } }
-    override fun onReset() { core = null; pendingCore = null; _status.value = EngineStatus() }
+    override fun onReset() { core = null; pendingCore = null; EngineStatusCenter.publish(EngineStatus()) }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
         val c = core ?: run { inputBuffer.position(inputBuffer.limit()); return }
@@ -90,11 +91,11 @@ class EngineAudioProcessor(private val settings: () -> EngineSettings) : BaseAud
         }
         out.flip()
         val now = System.currentTimeMillis()
-        if (now - lastStatusAt > 500) { lastStatusAt = now; _status.value = c.status }
+        if (now - lastStatusAt > 500) { lastStatusAt = now; EngineStatusCenter.publish(c.status) }
     }
 
     companion object {
-        private val _status = MutableStateFlow(EngineStatus())
-        val status: StateFlow<EngineStatus> = _status
+        /** Kept for existing callers; the canonical holder is [EngineStatusCenter]. */
+        val status: StateFlow<EngineStatus> get() = EngineStatusCenter.status
     }
 }

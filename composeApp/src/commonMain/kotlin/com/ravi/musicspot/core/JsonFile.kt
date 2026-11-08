@@ -1,5 +1,7 @@
 package com.ravi.musicspot.core
 
+import kotlin.concurrent.Volatile
+
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

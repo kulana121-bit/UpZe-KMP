@@ -20,6 +20,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -56,6 +57,7 @@ fun rememberHaptics(): Haptics {
     return remember(hf) { Haptics(hf) { Graph.settings.value.haptics } }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Modifier.pressable(
     onClickLabel: String? = null,

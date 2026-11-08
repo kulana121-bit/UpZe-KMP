@@ -146,7 +146,7 @@ fun AiPage() {
     val preset = AiMix.preset(s.aiPreset)
     var key by remember { mutableStateOf("") }
     var show by remember { mutableStateOf(false) }
-    var hasKey by remember { mutableStateOf(AiMix.hasKey(ctx)) }
+    var hasKey by remember { mutableStateOf(AiMix.hasKey()) }
     var testing by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var mood by remember { mutableStateOf("") }
@@ -171,14 +171,14 @@ fun AiPage() {
                         trailingIcon = { IconButton(onClick = { show = !show }) { Icon(if (show) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (show) "Hide" else "Show") } })
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Button(onClick = {
-                            if (key.isNotBlank()) { AiMix.saveKey(ctx, key); key = ""; hasKey = true }
+                            if (key.isNotBlank()) { AiMix.saveKey(key); key = ""; hasKey = true }
                             testing = true; status = null
                             scope.launch {
-                                status = runCatching { AiMix.test(ctx) }.fold({ "Connected · ${preset.label} answered “$it”" }, { "Not working: ${it.message}" })
+                                status = runCatching { AiMix.test() }.fold({ "Connected · ${preset.label} answered “$it”" }, { "Not working: ${it.message}" })
                                 testing = false
                             }
                         }, enabled = !testing && (hasKey || key.isNotBlank())) { Text(if (key.isNotBlank()) "Save & test" else "Test") }
-                        if (hasKey) TextButton(onClick = { AiMix.saveKey(ctx, null); hasKey = false; status = "Key removed" }) { Text("Remove key") }
+                        if (hasKey) TextButton(onClick = { AiMix.saveKey(null); hasKey = false; status = "Key removed" }) { Text("Remove key") }
                         if (testing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     }
                     status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = if (it.startsWith("Connected")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
@@ -199,7 +199,7 @@ fun AiPage() {
                     Button(onClick = {
                         made = null; working = "Starting…"
                         scope.launch {
-                            runCatching { AiMix.makeMix(ctx, mood, count) { step -> working = step } }
+                            runCatching { AiMix.makeMix(mood, count) { step -> working = step } }
                                 .onSuccess { made = it; Pills.show("${it.name} saved") }
                                 .onFailure { Pills.show(it.message ?: "AI mix failed"); status = "Mix failed: ${it.message}" }
                             working = null

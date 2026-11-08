@@ -37,7 +37,7 @@ object Updater {
     val checking: StateFlow<Boolean> = _checking
     private var downloadJob: Job? = null
 
-    private fun log(msg: String) = runCatching { PlaybackLog.log("Updater: $msg") }
+    private fun log(msg: String) = runCatching { PlaybackLog.add("Updater: $msg") }
 
     fun checkOnStart() {
         IoScope.launch {
