@@ -1,0 +1,38 @@
+{
+  "name": "UpZe Source",
+  "identifier": "com.ravi.upze.source",
+  "subtitle": "Official AltStore / SideStore source for UpZe",
+  "description": "Add this source in AltStore or SideStore to install UpZe on iPhone and iPad and receive updates in place. UpZe keeps the same bundle ID (com.ravi.musicspot) on every release, so updates install over the previous version and keep your data.",
+  "iconURL": "https://raw.githubusercontent.com/kulana121-bit/UpZe-music/main/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
+  "website": "https://github.com/kulana121-bit/UpZe-music",
+  "apps": [
+    {
+      "name": "UpZe",
+      "bundleIdentifier": "com.ravi.musicspot",
+      "developerName": "Ravi",
+      "subtitle": "Free music player — streams, local files and your own servers",
+      "localizedDescription": "UpZe is a free, open-source music player that streams legal catalogues, plays your own files and servers, and runs every song through a real sound engine. No ads, no telemetry, no account required.",
+      "iconURL": "https://raw.githubusercontent.com/kulana121-bit/UpZe-music/main/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
+      "tintColor": "FF5358",
+      "category": "entertainment",
+      "version": "1.02",
+      "buildVersion": "32",
+      "versionDate": "2026-11-08",
+      "size": 18870597,
+      "downloadURL": "https://github.com/kulana121-bit/UpZe-music/releases/download/v1.02/UpZe-v1.02.ipa",
+      "minOSVersion": "15.0",
+      "versions": [
+        {
+          "version": "1.02",
+          "buildVersion": "32",
+          "date": "2026-11-08",
+          "size": 18870597,
+          "downloadURL": "https://github.com/kulana121-bit/UpZe-music/releases/download/v1.02/UpZe-v1.02.ipa",
+          "minOSVersion": "15.0",
+          "localizedDescription": "First iOS release of UpZe (Kotlin Multiplatform + Compose Multiplatform). Same features and same identity as the Android build."
+        }
+      ]
+    }
+  ],
+  "news": []
+}
